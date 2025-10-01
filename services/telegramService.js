@@ -14,7 +14,7 @@ function TelegramService() {
      * @param {object} options - Additional options (parse_mode, reply_markup, etc.)
      * @returns {Promise} - Promise that resolves with the API response
      */
-    SELF.sendMessage = function(chatId, text, options = {}) {
+    SELF.sendMessage = (chatId, text, options = {}) => {
         return new Promise((resolve, reject) => {
             const postData = JSON.stringify({
                 chat_id: chatId,
@@ -72,7 +72,7 @@ function TelegramService() {
      * @param {number} replyToMessageId - The message ID to reply to
      * @param {object} options - Additional options
      */
-    SELF.sendReply = function(chatId, text, replyToMessageId, options = {}) {
+    SELF.sendReply = (chatId, text, replyToMessageId, options = {}) => {
         return SELF.sendMessage(chatId, text, {
             reply_to_message_id: replyToMessageId,
             ...options
@@ -84,7 +84,7 @@ function TelegramService() {
      * @param {string} webhookUrl - The webhook URL
      * @returns {Promise} - Promise that resolves with the API response
      */
-    SELF.setWebhook = function(webhookUrl) {
+    SELF.setWebhook = (webhookUrl) => {
         return new Promise((resolve, reject) => {
             const postData = JSON.stringify({
                 url: webhookUrl
@@ -137,7 +137,7 @@ function TelegramService() {
      * Delete webhook
      * @returns {Promise} - Promise that resolves with the API response
      */
-    SELF.deleteWebhook = function() {
+    SELF.deleteWebhook = () => {
         return new Promise((resolve, reject) => {
             const url = `${API_BASE_URL}/deleteWebhook`;
             const parsedUrl = new URL(url);

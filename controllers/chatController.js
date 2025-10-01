@@ -8,12 +8,12 @@ function ChatController() {
      * @param {object} req - Express request object
      * @param {object} res - Express response object
      */
-    SELF.handleWebhook = async function (req, res) {
+    SELF.handleWebhook = async (req, res) => {
         try {
             const update = req.body;
 
             // Check if this is a message update
-            if (update && update.message) {
+            if (update?.message) {
                 const message = update.message;
                 const chatId = message.chat.id;
                 const text = message.text;
@@ -40,7 +40,7 @@ function ChatController() {
      * @param {string} text - The message text
      * @param {number} messageId - The message ID for replying
      */
-    SELF.processMessage = async function (chatId, text, messageId) {
+    SELF.processMessage = async (chatId, text, messageId) => {
         try {
             let responseText = '';
 
@@ -77,7 +77,7 @@ function ChatController() {
      * @param {string} text - The message text
      * @param {object} options - Additional options
      */
-    SELF.sendMessage = async function (chatId, text, options = {}) {
+    SELF.sendMessage = async (chatId, text, options = {}) => {
         try {
             const result = await telegramService.sendMessage(chatId, text, options);
             return result;
