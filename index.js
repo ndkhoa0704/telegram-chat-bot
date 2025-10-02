@@ -1,11 +1,46 @@
 require('dotenv').config();
 const express = require('express')
+const { OpenAI } = require('openai');
+const prompts = require('./prompts');
 
 const app = express();
 
 // Middleware to parse JSON bodies
 app.use(express.json());
 
+console.log(process.env.LOCAL_AI_URL);
+
+function LmService() {
+    const SELF = {
+        client: (() => {
+            if (process.env.LOCAL_AI_URL) {
+                return new OpenAI({
+                    baseURL: process.env.LOCAL_AI_URL,
+                })
+            }
+            // return new OpenAI({
+            //     apiKey: process.env.OPENAI_API_KEY,
+            // })
+        })(),
+        removeThinkBlock: (text) => {
+            return text.split('</think>')[1]
+        }
+    }
+    return {
+        getResponse: async (message) => {
+            const response = await SELF.client.chat.completions.create({
+                model: process.env.LM_MODEL,
+                messages: [
+                    { role: "system", content: prompts.limit100words },
+                    { role: "user", content: message }
+                ],
+                tool_choice: "auto",
+                tools: []
+            })
+            return SELF.removeThinkBlock(response.choices[0].message.content)
+        }
+    }
+}
 
 function TelegramService() {
     const SELF = {
@@ -13,8 +48,6 @@ function TelegramService() {
         TELEGRAM_API_URL: `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`,
         TELEGRAM_WEBHOOK_URL: `https://${process.env.TELEGRAM_WEBHOOK_URL}/api/webhook`,
     }
-
-    console.log(SELF);
 
     return {
         setupWebhook: async () => {
@@ -46,9 +79,9 @@ function TelegramService() {
 
                 // Process the message here (you can add your bot logic)
                 // For now, just echo back the message
-                const replyText = `Echo: ${receivedMessage}`;
+                const replyText = await lmService.getResponse(receivedMessage);
 
-                const response = await fetch(`${SELF.TELEGRAM_API_URL}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(replyText)}`);
+                const response = await fetch(`${SELF.TELEGRAM_API_URL}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(replyText)}&parse_mode=html`);
                 const data = await response.json();
 
                 if (data.ok) {
@@ -72,7 +105,9 @@ function TelegramService() {
     }
 }
 
+const lmService = LmService();
 const telegramService = TelegramService();
+
 
 // Webhook endpoint
 app.post('/api/webhook', telegramService.sendReply);
