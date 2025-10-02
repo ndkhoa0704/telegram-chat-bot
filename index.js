@@ -8,19 +8,19 @@ const app = express();
 // Middleware to parse JSON bodies
 app.use(express.json());
 
-console.log(process.env.LOCAL_AI_URL);
 
 function LmService() {
     const SELF = {
         client: (() => {
-            if (process.env.LOCAL_AI_URL) {
+            if (!process.env.USE_LOCAL_AI) {
                 return new OpenAI({
                     baseURL: process.env.LOCAL_AI_URL,
                 })
             }
-            // return new OpenAI({
-            //     apiKey: process.env.OPENAI_API_KEY,
-            // })
+            console.log('Is using remote AI');
+            return new OpenAI({
+                apiKey: process.env.OPENAI_API_KEY,
+            })
         })(),
         removeThinkBlock: (text) => {
             return text.split('</think>')[1]
