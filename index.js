@@ -24,14 +24,14 @@ function LmService() {
         })(),
         removeThinkBlock: (text) => {
             return text.split('</think>')[1]
-        }
+        },
     }
     return {
         getResponse: async (message) => {
             const response = await SELF.client.chat.completions.create({
                 model: process.env.LM_MODEL,
                 messages: [
-                    { role: "system", content: prompts.limit100words },
+                    { role: "system", content: prompts.limitWords(1000) },
                     { role: "user", content: message }
                 ],
                 tool_choice: "auto",
@@ -66,25 +66,31 @@ function TelegramService() {
                 // Extract message data from webhook payload
                 const update = req.body;
 
-                console.log(update);
+                console.log('Received message:', update);
 
                 if (!update.message) {
                     return res.status(200).json({ status: 'ok' }); // Ignore non-message updates
                 }
 
-                const chatId = update.message.chat.id;
-                const receivedMessage = update.message.text;
+                const replyText = await lmService.getResponse(update.message.text);
 
-                console.log(`Received message from ${chatId}: ${receivedMessage}`);
+                const postData = {
+                    chat_id: update.message.chat.id,
+                    text: replyText,
+                    parse_mode: 'markdown'
+                };
 
-                // Process the message here (you can add your bot logic)
-                // For now, just echo back the message
-                const replyText = await lmService.getResponse(receivedMessage);
+                const response = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(postData)
+                });
 
-                const response = await fetch(`${SELF.TELEGRAM_API_URL}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(replyText)}&parse_mode=html`);
                 const data = await response.json();
 
-                if (data.ok) {
+                if (response.ok) {
                     console.log('Reply sent successfully');
                     res.status(200).json({ status: 'ok' });
                 } else {

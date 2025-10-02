@@ -1,5 +1,5 @@
 module.exports = {
-    limit100words: `
-    Your answer must be less than 100 words.
-    `
+    limitWords: (words) => `
+    Your answer must be less than ${words} words.
+    `,
 }
