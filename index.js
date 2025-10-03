@@ -23,7 +23,8 @@ function LmService() {
             })
         })(),
         removeThinkBlock: (text) => {
-            return text.split('</think>')[1]
+            const parts = text.split('</think>')
+            return parts[parts.length - 1]
         },
     }
     return {
@@ -37,6 +38,7 @@ function LmService() {
                 tool_choice: "auto",
                 tools: []
             })
+
             return SELF.removeThinkBlock(response.choices[0].message.content)
         }
     }
