@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express')
 const { OpenAI } = require('openai');
 const prompts = require('./prompts');
+const Tools = require('./tools');
 
 const app = express();
 
@@ -36,7 +37,7 @@ function LmService() {
                     { role: "user", content: message }
                 ],
                 tool_choice: "auto",
-                tools: []
+                tools: Tools
             })
 
             return SELF.removeThinkBlock(response.choices[0].message.content)
