@@ -118,7 +118,7 @@ const telegramService = TelegramService();
 // Webhook endpoint
 app.post('/api/webhook', telegramService.sendReply);
 
-app.listen(3000, () => {
+app.listen(process.env.PORT, () => {
     telegramService.setupWebhook();
     console.log('Server is running on port 3000');
 })
