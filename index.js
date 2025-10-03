@@ -120,7 +120,7 @@ app.post('/api/webhook', telegramService.sendReply);
 
 app.listen(process.env.PORT, () => {
     telegramService.setupWebhook();
-    console.log('Server is running on port 3000');
+    console.log(`Server is running on port ${process.env.PORT}`);
 })
 
 async function gracefulShutdown() {
