@@ -36,8 +36,6 @@ function LmService() {
                     { role: "system", content: prompts.limitWords(500) },
                     { role: "user", content: message }
                 ],
-                tool_choice: "auto",
-                tools: Tools
             })
 
             return SELF.removeThinkBlock(response.choices[0].message.content)
