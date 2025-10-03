@@ -32,7 +32,7 @@ function LmService() {
             const response = await SELF.client.chat.completions.create({
                 model: process.env.LM_MODEL,
                 messages: [
-                    { role: "system", content: prompts.limitWords(1000) },
+                    { role: "system", content: prompts.limitWords(500) },
                     { role: "user", content: message }
                 ],
                 tool_choice: "auto",
