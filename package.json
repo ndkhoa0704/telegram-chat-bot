@@ -20,7 +20,13 @@
   "dependencies": {
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "mammoth": "^1.11.0",
     "mongoose": "^8.18.3",
-    "openai": "^6.0.0"
+    "openai": "^6.0.0",
+    "pg": "^8.16.3",
+    "pgvector": "^0.2.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.6"
   }
 }
