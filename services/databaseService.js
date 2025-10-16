@@ -1,6 +1,6 @@
 const pg = require('pg');
 const { types } = require('pg');
-const pgvector = require('pgvector/pg');
+// const pgvector = require('pgvector/pg');
 types.setTypeParser(1700, (val) => val === null ? null : Number(val));
 
 
@@ -22,9 +22,9 @@ function PostgresService() {
                     user: process.env.PG_USERNAME,
                     password: process.env.PG_PASSWORD,
                 });
-                pool.on('connect', async (client) => {
-                    await pgvector.registerTypes(client);
-                });
+                // pool.on('connect', async (client) => {
+                //     await pgvector.registerTypes(client);
+                // });
 
                 self.pool = pool;
                 resolve(pool);

@@ -50,7 +50,7 @@ function LmService() {
     SELF.init();
     return {
         getResponse: async (message) => {
-            const response = await SELF.client.chat.completions.create({
+            const response = await SELF.chatClient.chat.completions.create({
                 model: process.env.LM_MODEL,
                 messages: [
                     { role: "system", content: prompts.limitWords(500) },

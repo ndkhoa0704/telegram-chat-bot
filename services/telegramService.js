@@ -1,10 +1,52 @@
 const LmService = require('./lmService');
+const PostgresService = require('./databaseService');
+
 
 function TelegramService() {
     const SELF = {
         TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
         TELEGRAM_API_URL: `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`,
         TELEGRAM_WEBHOOK_URL: `https://${process.env.TELEGRAM_WEBHOOK_URL}/api/webhook`,
+        COMMANDS: {
+            '/tasks': async (_msg) => {
+                try {
+                    const tasks = await PostgresService.executeQuery(`
+                        select cron, prompt, name
+                        from tasks
+                    `)
+                    const msg = tasks.map(task => `- ${task.cron} - ${task.name}`).join('\n');
+                    return msg
+
+                } catch (error) {
+                    console.error(error);
+                }
+
+            },
+            '/createtask': async msg => {
+                try {
+                    const [_, content] = msg.text.split(' ');
+                    if (!content) {
+                        return 'Usage: /createtask <cron> - <prompt>';
+                    }
+                    const [cron, prompt] = content.split(' - ');
+                    const description = await LmService.getResponse(`
+                        Summarize the given AI prompt into a concise description (≤100 characters) that captures its main intent.
+
+                        ${prompt}
+                        `);
+
+                    
+                    await PostgresService.executeQuery(`
+                        insert into tasks (cron, prompt, description)
+                        values ($1, $2, $3)
+                    `, [cron, prompt, description]);
+
+                    return `Task created successfully`;
+                } catch (error) {
+                    console.error(error);
+                }
+            }
+        }
     }
 
     return {
@@ -26,11 +68,22 @@ function TelegramService() {
 
                 console.log('Received message:', update);
 
-                if (!update.message) {
-                    return res.status(200).json({ status: 'ok' }); // Ignore non-message updates
+                let replyText = null;
+
+                if (update.message.text.startsWith('/')) {
+                    const command = update.message.text.split(' ')[0];
+                    console.log('Command:', command);
+                    const commandHandler = SELF.COMMANDS[command];
+                    if (commandHandler) {
+                        replyText = await commandHandler(update.message);
+                    } else {
+                        replyText = 'Command not found';
+                    }
                 }
 
-                const replyText = await LmService.getResponse(update.message.text);
+                if (!replyText) {
+                    return res.status(200).json({ status: 'ok' });
+                }
 
                 const postData = {
                     chat_id: update.message.chat.id,
