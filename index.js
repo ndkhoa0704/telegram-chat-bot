@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express')
 const LmService = require('./services/lmService');
+const TelegramService = require('./services/telegramService');
 
 const app = express();
 
@@ -10,8 +11,6 @@ app.use(express.json());
 
 
 
-const lmService = LmService();
-const telegramService = TelegramService();
 
 
 // Webhook endpoint

@@ -1,3 +1,5 @@
+const LmService = require('./lmService');
+
 function TelegramService() {
     const SELF = {
         TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
@@ -28,7 +30,7 @@ function TelegramService() {
                     return res.status(200).json({ status: 'ok' }); // Ignore non-message updates
                 }
 
-                const replyText = await lmService.getResponse(update.message.text);
+                const replyText = await LmService.getResponse(update.message.text);
 
                 const postData = {
                     chat_id: update.message.chat.id,
