@@ -24,7 +24,6 @@ function TelegramService() {
             },
             '/createtask': async msg => {
                 try {
-                    const [_, content] = msg.text.split(' ');
                     if (!content) {
                         return 'Usage: /createtask <cron> - <prompt>';
                     }
