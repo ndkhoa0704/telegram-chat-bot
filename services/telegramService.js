@@ -4,9 +4,7 @@ const PostgresService = require('./databaseService');
 
 function TelegramService() {
     const SELF = {
-        CHAT_SESSSIONS: {
-
-        },
+        CHAT_SESSSIONS: {},
         BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
         API_URL: `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`,
         WEBHOOK_URL: `https://${process.env.TELEGRAM_WEBHOOK_URL}/api/webhook`,
@@ -44,23 +42,40 @@ function TelegramService() {
                     return res.status(500).json({ error: error.message });
                 }
             },
-            '/createtask': async (req, res) => {
+            '/createtask': async (req, res, isCurrentChatSession = false) => {
                 try {
-                    const description = await LmService.getResponse(`
-                        Summarize the given AI prompt into a concise description (<200 characters) that captures its main intent:\
-                        ${prompt}
-                    `);
-
-                    await PostgresService.executeQuery(`
-                        insert into tasks (cron, prompt, description)
-                        values ($1, $2, $3)
-                    `, [cron, prompt, description]);
-
-                    return SELF.sendMessage(req, res, `Task created successfully`);
+                    if (isCurrentChatSession) {
+                        const description = await LmService.getResponse(`
+                            Summarize the given AI prompt into a concise description (<200 characters) that captures its main intent:\
+                            ${prompt}
+                        `);
+                        await PostgresService.executeQuery(`
+                            insert into tasks (cron, prompt, description)
+                            values ($1, $2, $3)
+                        `, [cron, prompt, description]);
+                        delete SELF.CHAT_SESSSIONS[req.body.message.chat.id];
+                        return SELF.sendMessage(req, res, `Task created successfully`);
+                    }
+                    SELF.CHAT_SESSSIONS[req.body.message.chat.id] = '/createtask';
+                    return SELF.sendMessage(req, res, `Give me your cron - prompt`);
                 } catch (error) {
                     console.error(error);
                     return res.status(500).json({ error: error.message });
                 }
+            },
+            '/ask': async (req, res) => {
+                try {
+                    const [_, prompt] = req.body.message.text.split(' ');
+                    const response = await LmService.getResponse(prompt);
+                    return SELF.sendMessage(req, res, response);
+                } catch (error) {
+                    console.error(error);
+                    return res.status(500).json({ error: error.message });
+                }
+            },
+            '/cancel': async (req, res) => {
+                delete SELF.CHAT_SESSSIONS[req.body.message.chat.id];
+                return SELF.sendMessage(req, res, `Command cancelled`);
             }
         }
     }
@@ -84,8 +99,10 @@ function TelegramService() {
 
                 const currentChatSession = SELF.CHAT_SESSSIONS[update.message.chat.id];
                 if (currentChatSession) {
-                    
-
+                    const commandHandler = SELF.COMMANDS[currentChatSession];
+                    if (commandHandler) return commandHandler(req, res, true);
+                    delete SELF.CHAT_SESSSIONS[update.message.chat.id];
+                    return res.status(200).json({ status: 'Invalid session' });
                 }
 
                 if (update.message.text.startsWith('/')) {
