@@ -26,7 +26,7 @@ function LmService() {
     }
     return {
         init: () => {
-            if (process.env.USE_LOCAL_AI) {
+            if (process.env.USE_LOCAL_AI === '1') {
                 SELF.chatClient = new OpenAI({
                     baseURL: process.env.LOCAL_CHAT_MODEL_URL,
                 })
