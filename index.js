@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express')
 const TelegramService = require('./services/telegramService');
 const PostgresService = require('./services/databaseService');
+const LmService = require('./services/lmService');
+
 
 const app = express();
 
@@ -14,6 +16,7 @@ app.post('/api/webhook', TelegramService.sendReply);
 app.listen(process.env.WEB_PORT, () => {
     TelegramService.setupWebhook();
     PostgresService.connect();
+    LmService.init();
     console.log(`Server is running on port ${process.env.WEB_PORT}`);
 })
 

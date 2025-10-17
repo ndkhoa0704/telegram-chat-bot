@@ -5,8 +5,6 @@ const PostgresService = require('./databaseService');
 const fsPromises = require('node:fs').promises;
 
 
-
-
 function LmService() {
     const SELF = {
         chatClient: null,
@@ -17,6 +15,16 @@ function LmService() {
             const parts = text.split('</think>')
             return parts[parts.length - 1]
         },
+        FILES_FOLDER_PATH: process.env.FILES_FOLDER_PATH,
+        getEmbeddings: async (text) => {
+            const response = await SELF.embeddingClient.embeddings.create({
+                model: SELF.embeddingModel,
+                input: text,
+            })
+            return response.data[0].embedding;
+        },
+    }
+    return {
         init: () => {
             if (process.env.USE_LOCAL_AI) {
                 SELF.chatClient = new OpenAI({
@@ -37,18 +45,9 @@ function LmService() {
                 })
                 SELF.embeddingModel = process.env.EMBED_MODEL
             }
+            console.log(`${SELF.chatModel} initialized`);
+            console.log(`${SELF.embeddingModel} initialized`);
         },
-        FILES_FOLDER_PATH: process.env.FILES_FOLDER_PATH,
-        getEmbeddings: async (text) => {
-            const response = await SELF.embeddingClient.embeddings.create({
-                model: SELF.embeddingModel,
-                input: text,
-            })
-            return response.data[0].embedding;
-        },
-    }
-    SELF.init();
-    return {
         getResponse: async (message) => {
             const response = await SELF.chatClient.chat.completions.create({
                 model: SELF.chatModel,
