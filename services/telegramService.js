@@ -45,6 +45,7 @@ function TelegramService() {
             '/createtask': async (req, res, isCurrentChatSession = false) => {
                 try {
                     if (isCurrentChatSession) {
+                        const [cron, prompt] = req.body.message.text.split(' - ');
                         const description = await LmService.getResponse(`
                             Summarize the given AI prompt into a concise description (<200 characters) that captures its main intent:\
                             ${prompt}
