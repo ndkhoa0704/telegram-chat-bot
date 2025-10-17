@@ -28,10 +28,10 @@ function TelegramService() {
             '/tasks': async (req, res) => {
                 try {
                     const tasks = await PostgresService.executeQuery(`
-                        select cron, prompt, name
+                        select cron, prompt, description
                         from tasks
                     `)
-                    const msg = tasks.map(task => `- ${task.cron} - ${task.name}`).join('\n');
+                    const msg = tasks?.length ? tasks.map(task => `- ${task.cron} - ${task.name}`).join('\n') : 'No tasks found'
                     const response = await SELF.sendMessage(msg, req.body.message.chat.id);
                     if (!response.ok) return res.status(500).json({ error: response.error });
                     return res.status(200).json({ status: 'ok' });
