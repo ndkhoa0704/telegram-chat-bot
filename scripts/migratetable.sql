@@ -13,6 +13,7 @@ create table tasks (
 	id serial primary key,
 	prompt text,
 	cron varchar(10),
+    description varchar(200),
 	created_at timestamp default now(),
 	updated_at timestamp default now()
 );
