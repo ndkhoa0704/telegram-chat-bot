@@ -36,18 +36,34 @@ function PostgresService() {
                 self.pool = null;
             }
         },
-        executeQuery: async (query) => {
+        executeQuery: async (query, params = []) => {
             const client = await self.pool.connect();
+            let transactionStarted = false;
             try {
-                await client.query('BEGIN');
-                const result = await client.query(query);
-                await client.query('COMMIT');
+                const operation = query.trim().toLowerCase();
+                if (/^(insert|update|delete|create|drop|alter)/i.test(operation)) {
+                    transactionStarted = true;
+                    await client.query('BEGIN');
+                }
+
+                const result = await client.query(query, params);
+
+                if (transactionStarted) {
+                    await client.query('COMMIT');
+                }
+
                 return result.rows;
             } catch (error) {
-                await client.query('ROLLBACK');
+                if (transactionStarted) {
+                    try {
+                        await client.query('ROLLBACK');
+                    } catch (rollbackError) {
+                        console.error('Rollback failed:', rollbackError);
+                    }
+                }
                 throw error;
             } finally {
-                await client.release();
+                client.release();
             }
         }
     };

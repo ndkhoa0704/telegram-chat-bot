@@ -4,13 +4,16 @@ const PostgresService = require('./databaseService');
 
 function TelegramService() {
     const SELF = {
+        CHAT_SESSSIONS: {
+
+        },
         BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
         API_URL: `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`,
         WEBHOOK_URL: `https://${process.env.TELEGRAM_WEBHOOK_URL}/api/webhook`,
         SEND_MSG_URL: `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
-        sendMessage: async (msg, chatId) => {
+        sendMessage: async (req, res, msg) => {
             const postData = {
-                chat_id: chatId,
+                chat_id: req.body.message.chat.id,
                 text: msg,
                 parse_mode: 'markdown'
             };
@@ -22,7 +25,8 @@ function TelegramService() {
                 },
                 body: JSON.stringify(postData)
             });
-            return response;
+            if (!response.ok) return res.status(500).json({ error: response.error });
+            return res.status(200).json({ status: 'ok' });
         },
         COMMANDS: {
             '/tasks': async (req, res) => {
@@ -42,12 +46,8 @@ function TelegramService() {
             },
             '/createtask': async (req, res) => {
                 try {
-                    if (!content) {
-                        return 'Usage: /createtask';
-                    }
-                    const [cron, prompt] = content.split(' - ');
                     const description = await LmService.getResponse(`
-                        Summarize the given AI prompt into a concise description (≤100 characters) that captures its main intent:\
+                        Summarize the given AI prompt into a concise description (<200 characters) that captures its main intent:\
                         ${prompt}
                     `);
 
@@ -56,9 +56,7 @@ function TelegramService() {
                         values ($1, $2, $3)
                     `, [cron, prompt, description]);
 
-                    const response = await SELF.sendMessage(`Task created successfully`, req.body.message.chat.id);
-                    if (!response.ok) return res.status(500).json({ error: response.error });
-                    return res.status(200).json({ status: 'ok' });
+                    return SELF.sendMessage(req, res, `Task created successfully`);
                 } catch (error) {
                     console.error(error);
                     return res.status(500).json({ error: error.message });
@@ -83,6 +81,12 @@ function TelegramService() {
             try {
                 // Extract message data from webhook payload
                 const update = req.body;
+
+                const currentChatSession = SELF.CHAT_SESSSIONS[update.message.chat.id];
+                if (currentChatSession) {
+                    
+
+                }
 
                 if (update.message.text.startsWith('/')) {
                     const command = update.message.text.split(' ')[0];
