@@ -1,4 +1,4 @@
-const searchWeb = {
+module.exports = {
     type: "function",
     function: {
         name: "webSearch",
@@ -39,8 +39,3 @@ const searchWeb = {
         }));
     },
 }
-
-
-const Tools = [searchWeb];
-
-module.exports = Tools;
