@@ -40,7 +40,8 @@ function TelegramService() {
                         ? tasks.map(task =>
                             `\`${task.cron}\` - ${task.description}`).join('\n')
                         : 'No tasks found';
-                    return SELF.sendMessage(msg, chatId);
+                    const response = await SELF.sendMessage(msg, chatId);
+                    return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
                     console.error(error);
                     return res.status(500).json({ error: error.message });
@@ -77,7 +78,8 @@ function TelegramService() {
                             cron: '',
                         }
                     };
-                    return SELF.sendMessage(`Give me your cron`, chatId);
+                    const response = await SELF.sendMessage(`Give me your cron`, chatId);
+                    return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
                     console.error(error);
                     return res.status(500).json({ error: error.message });
@@ -86,9 +88,12 @@ function TelegramService() {
             '/ask': async (req, res) => {
                 try {
                     const chatId = req.body.message.chat.id;
-                    const [_, prompt] = req.body.message.text.split(' ');
-                    const response = await LmService.getResponse(prompt);
-                    return SELF.sendMessage(response, chatId);
+                    const msgParts = req.body.message.text.split(' ');
+                    const prompt = msgParts.slice(1).join(' ');
+                    if (!prompt) return res.status(200).json({ status: 'ok', response: 'Please provide a prompt' });
+                    const replyMsg = await LmService.getResponse(prompt);
+                    const response = await SELF.sendMessage(replyMsg, chatId);
+                    return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
                     console.error(error);
                     return res.status(500).json({ error: error.message });
@@ -121,10 +126,7 @@ function TelegramService() {
                 const currentChatSession = SELF.CHAT_SESSSIONS[update.message.chat.id];
                 if (currentChatSession?.command) {
                     const commandHandler = SELF.commandHandlers[currentChatSession.command];
-                    if (commandHandler) {
-                        await commandHandler(req, res);
-                        return res.status(200).json({ status: 'ok' });
-                    }
+                    if (commandHandler) return commandHandler(req, res);
                     delete SELF.CHAT_SESSSIONS[update.message.chat.id];
                     return res.status(200).json({ status: 'Invalid session' });
                 }
@@ -132,14 +134,10 @@ function TelegramService() {
                 if (update.message.text.startsWith('/')) {
                     const command = update.message.text.split(' ')[0];
                     const commandHandler = SELF.commandHandlers[command];
-                    if (commandHandler) await commandHandler(req, res);
-                    return res.status(200).json({ status: 'ok' });
+                    if (commandHandler) return commandHandler(req, res);
                 }
-                return res.status(200).json({ status: 'ok' });
-
             } catch (error) {
                 console.error('Error processing webhook:', error);
-                res.status(500).json({ error: 'Internal server error' });
             }
         },
         sendMessage: async (msg, chatId) => {

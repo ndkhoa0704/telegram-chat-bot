@@ -1,6 +1,8 @@
 const searchWeb = require('./searchWeb');
+const currentTimeStamp = require('./currentTimeStamp');
 
 
-const tools = [searchWeb];
-
-module.exports = tools;
+module.exports = [
+    searchWeb,
+    currentTimeStamp,
+];

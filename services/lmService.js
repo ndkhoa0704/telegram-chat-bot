@@ -1,6 +1,6 @@
 const { OpenAI } = require('openai');
 const prompts = require('../prompts');
-const Tools = require('../tools');
+const tools = require('../tools');
 const PostgresService = require('./databaseService');
 const fsPromises = require('node:fs').promises;
 
@@ -12,6 +12,7 @@ function LmService() {
         chatModel: null,
         embeddingModel: null,
         removeThinkBlock: (text) => {
+            if (!text.includes('</think>')) return text;
             const parts = text.split('</think>')
             return parts[parts.length - 1]
         },
@@ -23,6 +24,7 @@ function LmService() {
             })
             return response.data[0].embedding;
         },
+        MAX_TOOL_CALLS: 3
     }
     return {
         init: () => {
@@ -49,15 +51,47 @@ function LmService() {
             console.log(`${SELF.embeddingModel} initialized`);
         },
         getResponse: async (message) => {
-            const response = await SELF.chatClient.chat.completions.create({
+            const messages = [
+                { role: "system", content: prompts.limitWords(500) },
+                { role: "user", content: message },
+            ];
+            for (let i = 0; i < SELF.MAX_TOOL_CALLS; i++) {
+                const response = await SELF.chatClient.chat.completions.create({
+                    model: SELF.chatModel,
+                    messages: messages,
+                    tools: tools,
+                    tool_choice: 'auto',
+                })
+                const assistantMessage = response.choices[0].message;
+                const toolCalls = assistantMessage?.tool_calls;
+                if (!toolCalls?.length) {
+                    return SELF.removeThinkBlock(assistantMessage?.content || '');
+                }
+                // include assistant tool_call message in history
+                messages.push(assistantMessage);
+                for (const toolCall of toolCalls) {
+                    const toolName = toolCall.function.name;
+                    const toolExecutor = tools.find(tool => tool.function.name === toolName);
+                    const argsJson = toolCall.function?.arguments;
+                    let args = {};
+                    if (argsJson) {
+                        try {
+                            args = JSON.parse(argsJson);
+                        } catch (_) {
+                            args = {};
+                        }
+                    }
+                    const toolResult = await toolExecutor.execute(args);
+                    messages.push({ role: "tool", content: JSON.stringify(toolResult), tool_call_id: toolCall.id });
+                }
+            }
+            // Reached max tool calls; force model to produce an answer without further tool use
+            const finalResponse = await SELF.chatClient.chat.completions.create({
                 model: SELF.chatModel,
-                messages: [
-                    { role: "system", content: prompts.limitWords(500) },
-                    { role: "user", content: message }
-                ],
+                messages: messages,
+                tool_choice: 'none',
             })
-
-            return SELF.removeThinkBlock(response.choices[0].message.content)
+            return SELF.removeThinkBlock(finalResponse.choices[0].message?.content || '');
         },
         saveDocumentsFromFolder: async () => {
             try {
