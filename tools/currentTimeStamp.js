@@ -1,3 +1,5 @@
+const logger = require('../utils/logUtil');
+
 module.exports = {
     type: "function",
     function: {
@@ -11,6 +13,8 @@ module.exports = {
         }
     },
     execute: async () => {
-        return new Date().toISOString();
+        const result = new Date().toISOString();
+        logger.info(`Tool currentTimeStamp called: ${result}`);
+        return result;
     },
 }

@@ -1,3 +1,5 @@
+const logger = require('../utils/logUtil');
+
 module.exports = {
     type: "function",
     function: {
@@ -32,6 +34,7 @@ module.exports = {
         const data = await response.json();
         const results = data.web.results;
 
+        logger.info(`Tool searchWeb called: ${JSON.stringify(results, null, 2)}`);
         return results.map(result => ({
             title: result.title,
             url: result.url,
