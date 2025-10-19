@@ -1,10 +1,10 @@
 const LmService = require('./lmService');
 const PostgresService = require('./databaseService');
 const logger = require('../utils/logUtil');
+const RedisService = require('./redisService');
 
 function TelegramService() {
     const SELF = {
-        CHAT_SESSSIONS: {},
         BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
         API_URL: `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`,
         WEBHOOK_URL: `https://${process.env.TELEGRAM_WEBHOOK_URL}/api/webhook`,
@@ -35,7 +35,6 @@ function TelegramService() {
                         select cron, prompt, description
                         from tasks
                     `)
-
                     const msg = tasks?.length
                         ? tasks.map(task =>
                             `\`${task.cron}\` - ${task.description}`).join('\n')
@@ -47,37 +46,42 @@ function TelegramService() {
                     return res.status(500).json({ error: error.message });
                 }
             },
-            '/createtask': async (req, res) => {
+            '/createtask': async (req, res, chatSession) => {
                 try {
                     const chatId = req.body.message.chat.id;
-                    if (SELF.CHAT_SESSSIONS[chatId]) {
-                        if (!SELF.CHAT_SESSSIONS[chatId]?.data?.cron) {
+                    if (chatSession) {
+                        if (!chatSession.data?.cron) {
                             const cron = req.body.message.text.split(' - ')[0];
-                            SELF.CHAT_SESSSIONS[chatId].data.cron = cron;
-                            return SELF.sendMessage(`Give me your prompt`, chatId);
+                            chatSession.data.cron = cron;
+                            await RedisService.storeData(chatId, chatSession);
+                            const response = await SELF.sendMessage(`Give me your prompt`, chatId);
+                            return res.status(200).json({ status: 'ok', response: response });
                         }
-                        if (SELF.CHAT_SESSSIONS[chatId]?.data?.cron) {
-                            const prompt = req.body.message.text;
-                            SELF.CHAT_SESSSIONS[chatId].data.prompt = prompt;
+                        if (chatSession.data?.cron) {
+                            const prompt = req.body.message.text.replace('/createtask ', '').trim();
+                            logger.info(`Prompt: ${prompt}`);
                             const description = await LmService.getResponse(`
-                                Summarize the given AI prompt into a concise description (<200 characters) that captures its main intent:\
+                                Summarize the given AI prompt into a concise description (<200 characters) that captures its main intent:
                                 ${prompt}
-                            `);
-                            const cron = SELF.CHAT_SESSSIONS[chatId].data.cron;
+                            `, false);
+                            const cron = chatSession.data.cron;
+                            await RedisService.storeData(chatId, chatSession);
                             await PostgresService.executeQuery(`
                             insert into tasks (cron, prompt, description, chat_id)
                             values ($1, $2, $3, $4)
                             `, [cron, prompt, description.trim(), chatId]);
-                            delete SELF.CHAT_SESSSIONS[chatId];
-                            return SELF.sendMessage(`Task created successfully`, chatId);
+                            await RedisService.deleteData(chatId);
+                            const response = await SELF.sendMessage(`Task created successfully`, chatId);
+                            return res.status(200).json({ status: 'ok', response: response });
                         }
                     }
-                    SELF.CHAT_SESSSIONS[chatId] = {
+                    const newChatSession = {
                         command: '/createtask',
                         data: {
                             cron: '',
-                        }
+                        },
                     };
+                    await RedisService.storeData(chatId, newChatSession, { EX: 120 })
                     const response = await SELF.sendMessage(`Give me your cron`, chatId);
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
@@ -100,7 +104,7 @@ function TelegramService() {
                 }
             },
             '/cancel': async (req, res) => {
-                delete SELF.CHAT_SESSSIONS[req.body.message.chat.id];
+                await RedisService.deleteData(req.body.message.chat.id);
                 return SELF.sendMessage(req, res, `Command cancelled`);
             }
         }
@@ -122,13 +126,14 @@ function TelegramService() {
             try {
                 // Extract message data from webhook payload
                 const update = req.body;
-                logger.info(`Webhook update: ${JSON.stringify(update, null, 2)}`);
+                logger.info(`Send reply: ${JSON.stringify(update, null, 2)}`);
 
-                const currentChatSession = SELF.CHAT_SESSSIONS[update.message.chat.id];
-                if (currentChatSession?.command) {
-                    const commandHandler = SELF.commandHandlers[currentChatSession.command];
-                    if (commandHandler) return commandHandler(req, res);
-                    delete SELF.CHAT_SESSSIONS[update.message.chat.id];
+                const chatSession = await RedisService.getData(update.message.chat.id);
+                logger.info(`Chat session: ${JSON.stringify(chatSession, null, 2)}`);
+                if (chatSession?.command) {
+                    const commandHandler = SELF.commandHandlers[chatSession.command];
+                    if (commandHandler) return commandHandler(req, res, chatSession);
+                    await RedisService.deleteData(update.message.chat.id);
                     return res.status(200).json({ status: 'Invalid session' });
                 }
 
@@ -136,6 +141,8 @@ function TelegramService() {
                     const command = update.message.text.split(' ')[0];
                     const commandHandler = SELF.commandHandlers[command];
                     if (commandHandler) return commandHandler(req, res);
+                    return res.status(200).json({ status: 'Invalid command' });
+
                 }
                 return res.status(200).json({ status: 'ok' });
             } catch (error) {
