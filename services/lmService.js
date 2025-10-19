@@ -53,7 +53,7 @@ function LmService() {
         },
         getResponse: async (message, toolUse = true) => {
             const messages = [
-                { role: "system", content: prompts.limitWords(500) },
+                { role: "system", content: prompts.perplexity },
                 { role: "user", content: message },
             ];
             if (toolUse) {
