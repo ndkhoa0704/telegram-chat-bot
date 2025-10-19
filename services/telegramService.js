@@ -93,13 +93,13 @@ function TelegramService() {
                 try {
                     const chatId = req.body.message.chat.id;
                     const msgParts = req.body.message.text.split(' ');
-                    const prompt = msgParts.slice(1).join(' ');
+                    const prompt = msgParts.slice(1).join(' ').trim();
                     if (!prompt) return res.status(200).json({ status: 'ok', response: 'Please provide a prompt' });
                     const replyMsg = await LmService.getResponse(prompt);
                     const response = await SELF.sendMessage(replyMsg, chatId);
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
-                    logger.error(`Error in /ask: ${error}`);
+                    logger.error(`Error in /ask: ${error.stack}`);
                     return res.status(500).json({ error: error.message });
                 }
             },
