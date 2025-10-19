@@ -3,6 +3,7 @@ const prompts = require('../prompts');
 const tools = require('../tools');
 const PostgresService = require('./databaseService');
 const fsPromises = require('node:fs').promises;
+const logger = require('../utils/logUtil');
 
 
 function LmService() {
@@ -47,8 +48,8 @@ function LmService() {
                 })
                 SELF.embeddingModel = process.env.EMBED_MODEL
             }
-            console.log(`${SELF.chatModel} initialized`);
-            console.log(`${SELF.embeddingModel} initialized`);
+            logger.info(`${SELF.chatModel} initialized`);
+            logger.info(`${SELF.embeddingModel} initialized`);
         },
         getResponse: async (message) => {
             const messages = [
@@ -109,7 +110,7 @@ function LmService() {
                     }
                 }
             } catch (error) {
-                console.error(error);
+                logger.error(error);
             }
         }
     }

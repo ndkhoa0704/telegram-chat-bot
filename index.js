@@ -4,6 +4,7 @@ const TelegramService = require('./services/telegramService');
 const PostgresService = require('./services/databaseService');
 const LmService = require('./services/lmService');
 const ScheduleService = require('./services/scheduleService');
+const logger = require('./utils/logUtil');
 
 const app = express();
 
@@ -18,12 +19,12 @@ app.listen(process.env.WEB_PORT, () => {
     TelegramService.setupWebhook();
     PostgresService.connect();
     ScheduleService.startJobs();
-    console.log(`Server is running on port ${process.env.WEB_PORT}`);
+    logger.info(`Server is running on port ${process.env.WEB_PORT}`);
 })
 
 async function gracefulShutdown() {
     const data = await TelegramService.deleteWebhook();
-    console.log(data);
+    logger.info(`Delete webhook response: ${JSON.stringify(data, null, 2)}`);
     ScheduleService.stopJobs();
     process.exit(0);
 }

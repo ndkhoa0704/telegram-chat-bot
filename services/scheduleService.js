@@ -2,6 +2,7 @@ const CronJob = require('cron').CronJob;
 const PostgresService = require('./databaseService');
 const LmService = require('./lmService');
 const TelegramService = require('./telegramService');
+const logger = require('../utils/logUtil');
 
 function ScheduleService() {
     const SELF = {
@@ -14,9 +15,9 @@ function ScheduleService() {
                 from tasks
             `)
             taskData.forEach(task => {
-                console.log('Starting task', task.cron, task.description, task.chat_id);
+                logger.info(`Starting task ${task.id} with cron ${task.cron} and description ${task.description} and chat_id ${task.chat_id}`);
                 const job = new CronJob(task.cron, async () => {
-                    console.log('Running task', task.cron, task.description, task.chat_id);
+                    logger.info(`Running task ${task.id} with cron ${task.cron} and description ${task.description} and chat_id ${task.chat_id}`);
                     const response = await LmService.getResponse(task.prompt);
                     await TelegramService.sendMessage(response, task.chat_id);
                 });

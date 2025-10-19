@@ -1,6 +1,6 @@
 const LmService = require('./lmService');
 const PostgresService = require('./databaseService');
-
+const logger = require('../utils/logUtil');
 
 function TelegramService() {
     const SELF = {
@@ -24,7 +24,7 @@ function TelegramService() {
                 body: JSON.stringify(postData)
             });
             if (!response.ok) {
-                console.error(response);
+                logger.error(`Error in sendMessage: ${response}`);
             }
         },
         commandHandlers: {
@@ -43,7 +43,7 @@ function TelegramService() {
                     const response = await SELF.sendMessage(msg, chatId);
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
-                    console.error(error);
+                    logger.error(`Error in /tasks: ${error}`);
                     return res.status(500).json({ error: error.message });
                 }
             },
@@ -81,7 +81,7 @@ function TelegramService() {
                     const response = await SELF.sendMessage(`Give me your cron`, chatId);
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
-                    console.error(error);
+                    logger.error(`Error in /createtask: ${error}`);
                     return res.status(500).json({ error: error.message });
                 }
             },
@@ -95,7 +95,7 @@ function TelegramService() {
                     const response = await SELF.sendMessage(replyMsg, chatId);
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
-                    console.error(error);
+                    logger.error(`Error in /ask: ${error}`);
                     return res.status(500).json({ error: error.message });
                 }
             },
@@ -110,18 +110,19 @@ function TelegramService() {
         setupWebhook: async () => {
             const response = await fetch(`${SELF.API_URL}/setWebhook?url=${SELF.WEBHOOK_URL}`);
             const data = await response.json();
-            console.log(data);
+            logger.info(`Setup webhook response: ${JSON.stringify(data, null, 2)}`);
         },
         deleteWebhook: async () => {
             const response = await fetch(`${SELF.API_URL}/deleteWebhook`);
             const data = await response.json();
-            console.log('Delete webhook response:', data);
+            logger.info(`Delete webhook response: ${JSON.stringify(data, null, 2)}`);
             return data;
         },
         sendReply: async (req, res) => {
             try {
                 // Extract message data from webhook payload
                 const update = req.body;
+                logger.info(`Webhook update: ${JSON.stringify(update, null, 2)}`);
 
                 const currentChatSession = SELF.CHAT_SESSSIONS[update.message.chat.id];
                 if (currentChatSession?.command) {
@@ -136,8 +137,10 @@ function TelegramService() {
                     const commandHandler = SELF.commandHandlers[command];
                     if (commandHandler) return commandHandler(req, res);
                 }
+                return res.status(200).json({ status: 'ok' });
             } catch (error) {
-                console.error('Error processing webhook:', error);
+                logger.error(`Error processing webhook: ${error}`);
+                return res.status(500).json({ error: error.message });
             }
         },
         sendMessage: async (msg, chatId) => {
