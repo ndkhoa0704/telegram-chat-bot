@@ -4,8 +4,10 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - 3001:3000
+      - 3000:3000
     command: sh -c "node scripts/migrate_tables.js && node index.js"
+    volumes:
+      - ./logs:/app/logs
     depends_on:
       database:
         condition: service_healthy
