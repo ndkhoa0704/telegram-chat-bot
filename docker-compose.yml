@@ -1,5 +1,5 @@
 services:
-  telegram-chat-bot:
+  server:
     build:
       context: .
       dockerfile: Dockerfile
