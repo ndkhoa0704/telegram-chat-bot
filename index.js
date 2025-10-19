@@ -23,8 +23,7 @@ app.listen(process.env.WEB_PORT, () => {
 })
 
 async function gracefulShutdown() {
-    const data = await TelegramService.deleteWebhook();
-    logger.info(`Delete webhook response: ${JSON.stringify(data, null, 2)}`);
+    await TelegramService.deleteWebhook();
     ScheduleService.stopJobs();
     process.exit(0);
 }
