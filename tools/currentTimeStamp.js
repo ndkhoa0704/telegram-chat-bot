@@ -15,6 +15,8 @@ module.exports = {
     execute: async () => {
         const result = new Date().toISOString();
         logger.info(`Tool currentTimeStamp called: ${result}`);
-        return result;
+        return {
+            currentTimeStamp: result,
+        }
     },
 }
