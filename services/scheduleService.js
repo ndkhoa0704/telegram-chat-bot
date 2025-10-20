@@ -24,7 +24,8 @@ function ScheduleService() {
                 SELF.tasks[task.id] = job;
                 SELF.tasks[task.id].start();
             });
-
+            logger.info(`Started ${taskData.length} jobs`);
+            logger.info(`Starting syncNewJobs job`);
             SELF.tasks.syncNewJobs = new CronJob('*/5 * * * *', async () => {
                 await SELF.syncNewJobs();
             });
@@ -40,8 +41,10 @@ function ScheduleService() {
             });
         },
         syncNewJobs: async () => {
+            logger.info(`Syncing new jobs`);
             const jobIds = Object.keys(SELF.tasks);
             if (jobIds.length === 0) {
+                logger.info(`No jobs to sync`);
                 return;
             }
             const newJobs = await PostgresService.executeQuery(`
@@ -49,6 +52,7 @@ function ScheduleService() {
                 from tasks
                 where id not in (${jobIds.join(',')})
             `)
+            logger.info(`Found ${newJobs.length} new jobs to sync`);
             newJobs.forEach(task => {
                 logger.info(`Starting new task ${task.id} with cron ${task.cron} and description ${task.description} and chat_id ${task.chat_id}`);
                 const job = new CronJob(task.cron, async () => {
