@@ -15,12 +15,12 @@ app.use(express.json());
 // Webhook endpoint
 app.post('/api/webhook', TelegramService.sendReply);
 
-app.listen(process.env.WEB_PORT, () => {
+app.listen(process.env.WEB_PORT, async () => {
     LmService.init();
     RedisService.connect();
     TelegramService.setupWebhook();
     PostgresService.connect();
-    ScheduleService.startJobs();
+    await ScheduleService.startJobs();
     logger.info(`Server is running on port ${process.env.WEB_PORT}`);
 })
 
