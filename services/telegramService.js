@@ -115,7 +115,7 @@ function TelegramService() {
                         delete from tasks where id = $1 and chat_id = $2
                     `, [taskId, chatId]);
                     await SELF.sendMessage(`Task deleted successfully`, chatId);
-                    return res.status(200).json({ status: 'ok', response: response });
+                    return res.status(200).json({ status: 'ok', response: 'Task deleted successfully' });
                 } catch (error) {
                     logger.error(`Error in /deletetask: ${error.stack}`);
                     return res.status(500).json({ error: error.message });
