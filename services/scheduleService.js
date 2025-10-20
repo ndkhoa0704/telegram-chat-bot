@@ -7,6 +7,7 @@ const logger = require('../utils/logUtil');
 function ScheduleService() {
     const SELF = {
         tasks: {},
+        synNewJob: null,
         syncNewJobs: async () => {
             logger.info(`Syncing new jobs`);
             const jobIds = Object.keys(SELF.tasks);
@@ -50,10 +51,10 @@ function ScheduleService() {
             });
             logger.info(`Started ${taskData.length} jobs`);
             logger.info(`Starting syncNewJobs job`);
-            SELF.tasks.syncNewJobs = new CronJob('*/5 * * * *', async () => {
+            SELF.synNewJob = new CronJob('*/5 * * * *', async () => {
                 await SELF.syncNewJobs();
             });
-            SELF.tasks.syncNewJobs.start();
+            SELF.synNewJob.start();
         },
         stopJobs: (idList = []) => {
             Object.values(SELF.tasks).forEach(job => {
@@ -63,6 +64,9 @@ function ScheduleService() {
                     }
                 }
             });
+            if (SELF.synNewJob && typeof SELF.synNewJob.stop === 'function') {
+                SELF.synNewJob.stop();
+            }
         },
 
     }
