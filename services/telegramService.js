@@ -85,7 +85,7 @@ function TelegramService() {
                     const response = await SELF.sendMessage(`Give me your cron`, chatId);
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
-                    logger.error(`Error in /createtask: ${error}`);
+                    logger.error(`Error in /createtask: ${error.stack}`);
                     return res.status(500).json({ error: error.message });
                 }
             },
