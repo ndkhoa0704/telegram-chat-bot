@@ -32,12 +32,12 @@ function TelegramService() {
                 try {
                     const chatId = req.body.message.chat.id;
                     const tasks = await PostgresService.executeQuery(`
-                        select cron, prompt, description
+                        select id,cron, prompt, description
                         from tasks
                     `)
                     const msg = tasks?.length
                         ? tasks.map(task =>
-                            `\`${task.cron}\` - ${task.description}`).join('\n')
+                            `[${task.id}] \`${task.cron}\` - ${task.description}`).join('\n')
                         : 'No tasks found';
                     const response = await SELF.sendMessage(msg, chatId);
                     return res.status(200).json({ status: 'ok', response: response });
@@ -106,6 +106,20 @@ function TelegramService() {
             '/cancel': async (req, res) => {
                 await RedisService.deleteData(req.body.message.chat.id);
                 return SELF.sendMessage(req, res, `Command cancelled`);
+            },
+            '/deletetask': async (req, res) => {
+                try {
+                    const chatId = req.body.message.chat.id;
+                    const taskId = req.body.message.text.split(' ')[1];
+                    await PostgresService.executeQuery(`
+                        delete from tasks where id = $1 and chat_id = $2
+                    `, [taskId, chatId]);
+                    await SELF.sendMessage(`Task deleted successfully`, chatId);
+                    return res.status(200).json({ status: 'ok', response: response });
+                } catch (error) {
+                    logger.error(`Error in /deletetask: ${error.stack}`);
+                    return res.status(500).json({ error: error.message });
+                }
             }
         }
     }

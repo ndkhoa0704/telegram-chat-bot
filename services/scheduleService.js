@@ -7,7 +7,7 @@ const logger = require('../utils/logUtil');
 function ScheduleService() {
     const SELF = {
         tasks: {},
-        synNewJob: null,
+        syncNewJob: null,
         syncNewJobs: async () => {
             logger.info(`Syncing new jobs`);
             const jobIds = Object.keys(SELF.tasks);
@@ -45,16 +45,14 @@ function ScheduleService() {
                     logger.info(`Running task ${task.id} with cron ${task.cron} and description ${task.description} and chat_id ${task.chat_id}`);
                     const response = await LmService.getResponse(task.prompt);
                     await TelegramService.sendMessage(response, task.chat_id);
-                });
+                }, null, true, 'Asia/Ho_Chi_Minh');
                 SELF.tasks[task.id] = job;
-                SELF.tasks[task.id].start();
             });
             logger.info(`Started ${taskData.length} jobs`);
             logger.info(`Starting syncNewJobs job`);
-            SELF.synNewJob = new CronJob('*/5 * * * *', async () => {
+            SELF.syncNewJob = new CronJob('*/5 * * * *', async () => {
                 await SELF.syncNewJobs();
-            });
-            SELF.synNewJob.start();
+            }, null, true, 'Asia/Ho_Chi_Minh');
         },
         stopJobs: (idList = []) => {
             Object.values(SELF.tasks).forEach(job => {
@@ -64,11 +62,10 @@ function ScheduleService() {
                     }
                 }
             });
-            if (SELF.synNewJob && typeof SELF.synNewJob.stop === 'function') {
-                SELF.synNewJob.stop();
+            if (SELF.syncNewJob && typeof SELF.syncNewJob.stop === 'function') {
+                SELF.syncNewJob.stop();
             }
-        },
-
+        }
     }
 }
 
