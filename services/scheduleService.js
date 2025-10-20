@@ -24,12 +24,40 @@ function ScheduleService() {
                 SELF.tasks[task.id] = job;
                 SELF.tasks[task.id].start();
             });
+
+            SELF.tasks.syncNewJobs = new CronJob('*/5 * * * *', async () => {
+                await SELF.syncNewJobs();
+            });
+            SELF.tasks.syncNewJobs.start();
         },
-        stopJobs: () => {
+        stopJobs: (idList = []) => {
             Object.values(SELF.tasks).forEach(job => {
-                if (job && typeof job.stop === 'function') {
-                    job.stop();
+                if (idList.includes(job.id)) {
+                    if (job && typeof job.stop === 'function') {
+                        job.stop();
+                    }
                 }
+            });
+        },
+        syncNewJobs: async () => {
+            const jobIds = Object.keys(SELF.tasks);
+            if (jobIds.length === 0) {
+                return;
+            }
+            const newJobs = await PostgresService.executeQuery(`
+                select id, cron, prompt, description, chat_id
+                from tasks
+                where id not in (${jobIds.join(',')})
+            `)
+            newJobs.forEach(task => {
+                logger.info(`Starting new task ${task.id} with cron ${task.cron} and description ${task.description} and chat_id ${task.chat_id}`);
+                const job = new CronJob(task.cron, async () => {
+                    logger.info(`Running new task ${task.id} with cron ${task.cron} and description ${task.description} and chat_id ${task.chat_id}`);
+                    const response = await LmService.getResponse(task.prompt);
+                    await TelegramService.sendMessage(response, task.chat_id);
+                });
+                SELF.tasks[task.id] = job;
+                SELF.tasks[task.id].start();
             });
         }
     }
