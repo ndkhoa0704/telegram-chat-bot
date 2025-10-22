@@ -104,8 +104,10 @@ function TelegramService() {
                 }
             },
             '/cancel': async (req, res) => {
-                await RedisService.deleteData(req.body.message.chat.id);
-                return SELF.sendMessage(req, res, `Command cancelled`);
+                const chatId = req.body.message.chat.id;
+                await RedisService.deleteData(chatId);
+                const response = await SELF.sendMessage(`Operation cancelled`, chatId);
+                return res.status(200).json({ status: 'ok', response: response });
             },
             '/deletetask': async (req, res) => {
                 try {
