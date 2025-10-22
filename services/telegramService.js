@@ -43,7 +43,7 @@ function TelegramService() {
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
                     logger.error(`Error in /tasks: ${error}`);
-                    return res.status(500).json({ error: error.message });
+                    return res.status(200).json({ status: 'ok' });
                 }
             },
             '/createtask': async (req, res, chatSession) => {
@@ -86,7 +86,7 @@ function TelegramService() {
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
                     logger.error(`Error in /createtask: ${error.stack}`);
-                    return res.status(500).json({ error: error.message });
+                    return res.status(200).json({ status: 'ok' });
                 }
             },
             '/ask': async (req, res) => {
@@ -100,7 +100,7 @@ function TelegramService() {
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
                     logger.error(`Error in /ask: ${error.stack}`);
-                    return res.status(500).json({ error: error.message });
+                    return res.status(200).json({ status: 'ok' });
                 }
             },
             '/cancel': async (req, res) => {
@@ -120,7 +120,7 @@ function TelegramService() {
                     return res.status(200).json({ status: 'ok', response: 'Task deleted successfully' });
                 } catch (error) {
                     logger.error(`Error in /deletetask: ${error.stack}`);
-                    return res.status(500).json({ error: error.message });
+                    return res.status(200).json({ status: 'ok' });
                 }
             }
         }
@@ -163,7 +163,7 @@ function TelegramService() {
                 return res.status(200).json({ status: 'ok' });
             } catch (error) {
                 logger.error(`Error processing webhook: ${error}`);
-                return res.status(500).json({ error: error.message });
+                return res.status(200).json({ status: 'ok' });
             }
         },
         sendMessage: async (msg, chatId) => {
