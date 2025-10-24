@@ -51,7 +51,12 @@ function TelegramService() {
                     const chatId = req.body.message.chat.id;
                     if (chatSession) {
                         if (!chatSession.data?.cron) {
-                            const cron = req.body.message.text.split(' - ')[0];
+                            const cron = req.body.message.text;
+                            const cronRegex = /^((((\d+,)+\d+|(\d+(\/|-|#)\d+)|\d+L?|\*(\/\d+)?|L(-\d+)?|\?|[A-Z]{3}(-[A-Z]{3})?) ?){5,7})|(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every (\d+(ns|us|µs|ms|s|m|h))+)$/;
+                            if (!cronRegex.test(cron)) {
+                                await SELF.sendMessage(`Invalid cron format. Please provide a valid cron string`, chatId);
+                                return res.status(200).json({ status: 'ok' });
+                            }
                             chatSession.data.cron = cron;
                             await RedisService.storeData(chatId, chatSession);
                             const response = await SELF.sendMessage(`Give me your prompt`, chatId);
@@ -65,7 +70,9 @@ function TelegramService() {
                                 ${prompt}
                             `, false);
                             const cron = chatSession.data.cron;
-                            await RedisService.storeData(chatId, chatSession);
+                            await RedisService.storeData(chatId, chatSession, {
+                                EX: 300
+                            });
                             await PostgresService.executeQuery(`
                             insert into tasks (cron, prompt, description, chat_id)
                             values ($1, $2, $3, $4)
