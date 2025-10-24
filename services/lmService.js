@@ -4,6 +4,7 @@ const tools = require('../tools');
 const PostgresService = require('./databaseService');
 const fsPromises = require('node:fs').promises;
 const logger = require('../utils/logUtil');
+const ConverterService = require('./converterService');
 
 
 function LmService() {
@@ -116,7 +117,7 @@ function LmService() {
                     if (file.endsWith('.docx')) {
                         const filename = file.split('.')[0];
                         const docx = await fsPromises.readFile(`${SELF.FILES_FOLDER_PATH}/${file}`);
-                        const markdown = await SELF.docxToMarkdown(docx);
+                        const markdown = await ConverterService.docxToMarkdown(docx);
                         const embeding = await SELF.getEmbeddings(markdown);
                         await PostgresService.executeQuery(`
                             INSERT INTO document (filename, embeding)
