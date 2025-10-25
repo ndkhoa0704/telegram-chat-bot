@@ -42,9 +42,10 @@ function ScheduleService() {
             taskData.forEach(task => {
                 logger.info(`Starting task ${task.id} with cron ${task.cron} and description ${task.description} and chat_id ${task.chat_id}`);
                 const job = new CronJob(task.cron, async () => {
-                    logger.info(`Running task ${task.id} with cron ${task.cron} and description ${task.description} and chat_id ${task.chat_id}`);
+                    logger.info(`Running task ${task.id}`);
                     const response = await LmService.getResponse(task.prompt);
                     await TelegramService.sendMessage(response, task.chat_id);
+                    logger.info(`Task ${task.id} completed`);
                 });
                 SELF.tasks[task.id] = job;
                 SELF.tasks[task.id].start();

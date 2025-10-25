@@ -2,11 +2,11 @@
   "name": "telegram-chat-bot",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon index.js",
-    "start": "node index.js"
+    "dev": "nodemon --legacy-watch src/index.js",
+    "start": "node src/index.js"
   },
   "repository": {
     "type": "git",
@@ -21,7 +21,6 @@
   "homepage": "https://github.com/ndkhoa0704/telegram-chat-bot#readme",
   "dependencies": {
     "cron": "^4.3.3",
-    "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "mammoth": "^1.11.0",
     "mongoose": "^8.18.3",

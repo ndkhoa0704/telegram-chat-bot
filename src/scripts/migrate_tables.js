@@ -1,4 +1,3 @@
-require('dotenv').config();
 const PostgresService = require('../services/databaseService');
 
 async function migrateTables() {

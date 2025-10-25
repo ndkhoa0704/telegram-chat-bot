@@ -2,12 +2,14 @@ services:
   server:
     build:
       context: .
-      dockerfile: dockerfile.dev
+      dockerfile: dockerfile
+      target: dev
     ports:
       - 3001:3001
     command: sh -c "node src/scripts/migrate_tables.js && npm run dev"
+    env_file:
+      - .env
     volumes:
-      - ./logs:/app/logs
       - ./src:/app/src
     depends_on:
       database:

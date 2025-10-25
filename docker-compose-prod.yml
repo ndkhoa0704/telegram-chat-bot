@@ -2,7 +2,8 @@ services:
   server:
     build:
       context: .
-      dockerfile: dockerfile.prod
+      dockerfile: dockerfile
+      target: prod
     ports:
       - 3001:3001
     command: sh -c "node src/scripts/migrate_tables.js && npm run start"
