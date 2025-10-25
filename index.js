@@ -1,11 +1,11 @@
 require('dotenv').config();
 const express = require('express')
-const TelegramService = require('./services/telegramService');
-const PostgresService = require('./services/databaseService');
-const LmService = require('./services/lmService');
-const ScheduleService = require('./services/scheduleService');
-const logger = require('./utils/logUtil');
-const RedisService = require('./services/redisService');
+const TelegramService = require('./src/services/telegramService');
+const PostgresService = require('./src/services/databaseService');
+const LmService = require('./src/services/lmService');
+const ScheduleService = require('./src/services/scheduleService');
+const logger = require('./src/utils/logUtil');
+const RedisService = require('./src/services/redisService');
 
 const app = express();
 

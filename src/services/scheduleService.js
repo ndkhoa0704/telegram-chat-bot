@@ -45,14 +45,15 @@ function ScheduleService() {
                     logger.info(`Running task ${task.id} with cron ${task.cron} and description ${task.description} and chat_id ${task.chat_id}`);
                     const response = await LmService.getResponse(task.prompt);
                     await TelegramService.sendMessage(response, task.chat_id);
-                }, null, true, 'Asia/Ho_Chi_Minh');
+                });
                 SELF.tasks[task.id] = job;
+                SELF.tasks[task.id].start();
             });
             logger.info(`Started ${taskData.length} jobs`);
             logger.info(`Starting syncNewJobs job`);
             SELF.syncNewJob = new CronJob('*/5 * * * *', async () => {
                 await SELF.syncNewJobs();
-            }, null, true, 'Asia/Ho_Chi_Minh');
+            });
         },
         stopJobs: (idList = []) => {
             Object.values(SELF.tasks).forEach(job => {

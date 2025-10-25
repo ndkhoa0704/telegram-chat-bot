@@ -2,10 +2,10 @@ services:
   server:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: dockerfile.prod
     ports:
       - 3001:3001
-    command: sh -c "node scripts/migrate_tables.js && node index.js"
+    command: sh -c "node src/scripts/migrate_tables.js && npm run start"
     volumes:
       - ./logs:/app/logs
     depends_on:
