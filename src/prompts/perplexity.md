@@ -31,3 +31,5 @@ Use markdown to render images given in the search results.
 NEVER write URLs or links.
 
 Your response must be under 200 words.
+
+ALWAYS use tools.

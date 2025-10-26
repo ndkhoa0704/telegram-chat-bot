@@ -18,6 +18,7 @@ app.listen(process.env.WEB_PORT, async () => {
     LmService.init();
     RedisService.connect();
     TelegramService.setupWebhook();
+    TelegramService.setupCommands();
     PostgresService.connect();
     await ScheduleService.startJobs();
     logger.info(`Server is running on port ${process.env.WEB_PORT}`);
