@@ -37,7 +37,7 @@ function TelegramService() {
                     `)
                     const msg = tasks?.length
                         ? tasks.map(task =>
-                            `${task.id} - \`${task.cron}\` - ${task.description}`).join('\n')
+                            `${task.id}|\`${task.cron}\`|${task.description}`).join('\n')
                         : 'No tasks found';
                     const response = await SELF.sendMessage(msg, chatId);
                     return res.status(200).json({ status: 'ok', response: response });

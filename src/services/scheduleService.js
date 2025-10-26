@@ -22,14 +22,12 @@ function ScheduleService() {
             `)
             logger.info(`Found ${newJobs.length} new jobs to sync`);
             newJobs.forEach(task => {
-                logger.info(`Starting new task ${task.id} with cron ${task.cron} and description ${task.description} and chat_id ${task.chat_id}`);
-                const job = new CronJob(task.cron, async () => {
-                    logger.info(`Running new task ${task.id} with cron ${task.cron} and description ${task.description} and chat_id ${task.chat_id}`);
+                logger.info(`Starting task ${task.id}`);
+                SELF.tasks[task.id] = new CronJob(task.cron, async () => {
+                    logger.info(`Running task ${task.id}`);
                     const response = await LmService.getResponse(task.prompt);
                     await TelegramService.sendMessage(response, task.chat_id);
-                });
-                SELF.tasks[task.id] = job;
-                SELF.tasks[task.id].start();
+                }, null, true, 'Asia/Bangkok');
             });
         }
     }
@@ -40,15 +38,13 @@ function ScheduleService() {
                 from tasks
             `)
             taskData.forEach(task => {
-                logger.info(`Starting task ${task.id} with cron ${task.cron} and description ${task.description} and chat_id ${task.chat_id}`);
-                const job = new CronJob(task.cron, async () => {
+                logger.info(`Starting task ${task.id}`);
+                SELF.tasks[task.id] = new CronJob(task.cron, async () => {
                     logger.info(`Running task ${task.id}`);
                     const response = await LmService.getResponse(task.prompt);
                     await TelegramService.sendMessage(response, task.chat_id);
                     logger.info(`Task ${task.id} completed`);
-                });
-                SELF.tasks[task.id] = job;
-                SELF.tasks[task.id].start();
+                }, null, true, 'Asia/Bangkok');
             });
             logger.info(`Started ${taskData.length} jobs`);
             logger.info(`Starting syncNewJobs job`);
