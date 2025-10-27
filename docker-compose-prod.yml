@@ -7,6 +7,8 @@ services:
     ports:
       - 3001:3001
     command: sh -c "node src/scripts/migrate_tables.js && npm run start"
+    env_file:
+      - .env
     volumes:
       - ./logs:/app/logs
     depends_on:
