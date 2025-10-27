@@ -27,6 +27,16 @@ function RedisService() {
         storeData: async (key, data, options = {}) => {
             await SELF.client.set(SELF.PREFIX + key, JSON.stringify(data), options);
         },
+        getKeysByPrefix: async (prefix) => {
+            let cursor = 0;
+            let keys = [];
+            do {
+                const result = await SELF.client.scan(cursor, 'MATCH', `${SELF.PREFIX}${prefix}*`, 'COUNT', 1000);
+                cursor = result.cursor;
+                keys = keys.concat(result.keys);
+            } while (cursor !== 0);
+            return keys;
+        },
         getData: async (key) => {
             const data = await SELF.client.get(SELF.PREFIX + key);
             try {

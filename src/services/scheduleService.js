@@ -3,11 +3,13 @@ const PostgresService = require('./databaseService');
 const LmService = require('./lmService');
 const TelegramService = require('./telegramService');
 const logger = require('../utils/logUtil');
+const RedisService = require('./redisService');
 
 function ScheduleService() {
     const SELF = {
         tasks: {},
         syncNewJob: null,
+        persistConversationJob: null,
         syncNewJobs: async () => {
             logger.info(`Syncing new jobs`);
             const jobIds = Object.keys(SELF.tasks);
@@ -28,6 +30,17 @@ function ScheduleService() {
                     const response = await LmService.getResponse(task.prompt);
                     await TelegramService.sendMessage(response, task.chat_id);
                 }, null, true, 'Asia/Bangkok');
+            });
+        },
+        persistConversation: async () => {
+            const conversationKeys = await RedisService.getKeysByPrefix('conversation_');
+            conversationKeys.forEach(async (key) => {
+                const conversation = await RedisService.getData(key);
+                await PostgresService.executeQuery(`
+                    insert into conversations (chat_id, messages, summary)
+                    values ($1, $2, $3)
+                `, [key.split('_')[1], JSON.stringify(conversation.messages), conversation.summary]);
+                await RedisService.deleteData(key);
             });
         }
     }
@@ -51,6 +64,10 @@ function ScheduleService() {
             SELF.syncNewJob = new CronJob('*/5 * * * *', async () => {
                 await SELF.syncNewJobs();
             });
+            logger.info(`Starting persistConversation job`);
+            SELF.persistConversationJob = new CronJob('*/10 * * * *', async () => {
+                await SELF.persistConversation();
+            });
         },
         stopJobs: (idList = []) => {
             Object.values(SELF.tasks).forEach(job => {
@@ -62,6 +79,9 @@ function ScheduleService() {
             });
             if (SELF.syncNewJob && typeof SELF.syncNewJob.stop === 'function') {
                 SELF.syncNewJob.stop();
+            }
+            if (SELF.persistConversationJob && typeof SELF.persistConversationJob.stop === 'function') {
+                SELF.persistConversationJob.stop();
             }
         }
     }

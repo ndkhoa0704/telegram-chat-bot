@@ -150,31 +150,34 @@ function TelegramService() {
                 execute: async (req, res) => {
                     try {
                         const chatId = req.body.message.chat.id;
-                        const chatSession = await RedisService.getData(chatId)
+                        const chatSession = await RedisService.getData(`${chatId}`)
                         if (chatSession) {
                             const userMessage = req.body.message.text;
+                            const conversation = await RedisService.getData(`conversation_${chatId}`);
                             const replyMsg = await LmService.getResponse(userMessage)
                             SELF.sendMessage(replyMsg, chatId);
                             const summary = await LmService.getResponse(`
                                 Summarize the given conversation into a concise summary (<200 characters) that captures its main intent:
                                 ${userMessage}
                             `, false);
-                            chatSession.messages.push({
+                            conversation.messages.push({
                                 role: 'user',
                                 content: userMessage
                             });
-                            chatSession.messages.push({
+                            conversation.messages.push({
                                 role: 'assistant',
                                 content: replyMsg
                             });
-                            chatSession.summary = summary.trim();
-                            await RedisService.storeData(chatId, chatSession);
+                            conversation.summary = summary.trim();
+                            await RedisService.storeData(`conversation_${chatId}`, chatSession);
                             return res.status(200).json({ status: 'ok' });
                         }
                         await Promise.all([
                             SELF.sendMessage(`Hello, how can I help you today?`, chatId),
-                            RedisService.storeData(chatId, {
+                            RedisService.storeData(`${chatId}`, {
                                 command: '/startconversation',
+                            }),
+                            RedisService.storeData(`conversation_${chatId}`, {
                                 messages: [],
                                 summary: ''
                             })
