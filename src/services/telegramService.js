@@ -3,6 +3,7 @@ const PostgresService = require('./databaseService');
 const logger = require('../utils/logUtil');
 const RedisService = require('./redisService');
 
+
 function TelegramService() {
     const SELF = {
         BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
@@ -24,7 +25,7 @@ function TelegramService() {
                 body: JSON.stringify(postData)
             });
             if (!response.ok) {
-                logger.error(`Error in sendMessage: ${response}`);
+                logger.error(`Error in sendMessage: ${JSON.stringify(response, null, 2)}`);
             }
         },
         commandHandlers: {
@@ -93,7 +94,7 @@ function TelegramService() {
                                 cron: '',
                             },
                         };
-                        await RedisService.storeData(chatId, newChatSession, { EX: 120 })
+                        await RedisService.storeData(chatId, newChatSession, { EX: 300 })
                         const response = await SELF.sendMessage(`Give me your cron`, chatId);
                         return res.status(200).json({ status: 'ok', response: response });
                     } catch (error) {
@@ -123,9 +124,21 @@ function TelegramService() {
                 description: 'Hủy thao tác hiện tại',
                 execute: async (req, res) => {
                     const chatId = req.body.message.chat.id;
-                    await RedisService.deleteData(chatId);
-                    const response = await SELF.sendMessage(`Operation cancelled`, chatId);
-                    return res.status(200).json({ status: 'ok', response: response });
+                    const chatSession = await RedisService.getData(chatId);
+                    // if chat session is conversation
+                    if (chatSession?.command === '/startconversation') {
+                        const conversation = await RedisService.getData(`conversation_${chatId}`);
+                        if (conversation) {
+                            await Promise.all([PostgresService.executeQuery(`
+                                insert into conversations (chat_id, messages, summary, created_at)
+                                values ($1, $2, $3, $4)
+                            `, [chatId, JSON.stringify(conversation.messages), conversation.summary,
+                                new Date(conversation.createdAt * 1000)]),
+                            RedisService.deleteData(`conversation_${chatId}`)]);
+                        }
+                    }
+                    await Promise.all([RedisService.deleteData(chatId), SELF.sendMessage(`Operation cancelled`, chatId)]);
+                    return res.status(200).json({ status: 'ok' });
                 }
             },
             '/deletetask': {
@@ -150,7 +163,7 @@ function TelegramService() {
                 execute: async (req, res) => {
                     try {
                         const chatId = req.body.message.chat.id;
-                        const chatSession = await RedisService.getData(`${chatId}`)
+                        const chatSession = await RedisService.getData(`${chatId}`); // 5 minutes
                         if (chatSession) {
                             const userMessage = req.body.message.text;
                             const conversation = await RedisService.getData(`conversation_${chatId}`);
@@ -158,6 +171,9 @@ function TelegramService() {
                             if (conversation?.summary) {
                                 replyMsg = await LmService.getResponse(`
                                     Continue the conversation with the user, using the following summary to guide your response:
+                                    <last_2_messages>
+                                    ${conversation.messages.slice(-2).map(message => `${message.role}: ${message.content}`).join('\n')}
+                                    </last_2_messages>
                                     <summary>
                                     ${conversation.summary}
                                     </summary>
@@ -166,12 +182,15 @@ function TelegramService() {
                                     </user_message>
                                 `)
                             } else replyMsg = await LmService.getResponse(userMessage)
-
                             SELF.sendMessage(replyMsg, chatId);
-
                             const summary = await LmService.getResponse(`
-                                Summarize the given conversation into a concise summary (<200 characters) that captures its main intent:
+                                Summarize the question and answer into a concise summary (<200 characters) that captures its main intent:
+                                <question>
                                 ${userMessage}
+                                </question>
+                                <answer>
+                                ${replyMsg}
+                                </answer>
                             `, false);
                             conversation.messages.push({
                                 role: 'user',
@@ -182,17 +201,18 @@ function TelegramService() {
                                 content: replyMsg
                             });
                             conversation.summary = summary.trim();
-                            await RedisService.storeData(`conversation_${chatId}`, chatSession);
+                            await RedisService.storeData(`conversation_${chatId}`, conversation);
                             return res.status(200).json({ status: 'ok' });
                         }
                         await Promise.all([
                             SELF.sendMessage(`Hello, how can I help you today?`, chatId),
                             RedisService.storeData(`${chatId}`, {
                                 command: '/startconversation',
-                            }),
+                            }, { EX: 300 }),
                             RedisService.storeData(`conversation_${chatId}`, {
                                 messages: [],
-                                summary: ''
+                                summary: '',
+                                createdAt: Math.floor(Date.now() / 1000)
                             })
                         ]);
                         return res.status(200).json({ status: 'ok' });
@@ -221,14 +241,8 @@ function TelegramService() {
             try {
                 // Extract message data from webhook payload
                 const update = req.body;
-                logger.info(`Send reply: ${JSON.stringify(update, null, 2)}`);
-
                 const chatSession = await RedisService.getData(update.message.chat.id);
                 if (update.message.text.startsWith('/')) {
-                    if (chatSession) {
-                        await RedisService.deleteData(update.message.chat.id);
-                        return res.status(200).json({ status: 'ok' });
-                    }
                     const command = update.message.text.split(' ')[0];
                     const commandHandler = SELF.commandHandlers[command];
                     if (commandHandler) return commandHandler.execute(req, res);

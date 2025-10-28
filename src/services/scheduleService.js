@@ -5,6 +5,7 @@ const TelegramService = require('./telegramService');
 const logger = require('../utils/logUtil');
 const RedisService = require('./redisService');
 
+
 function ScheduleService() {
     const SELF = {
         tasks: {},
@@ -33,14 +34,26 @@ function ScheduleService() {
             });
         },
         persistConversation: async () => {
+            logger.info(`Persisting conversations`);
             const conversationKeys = await RedisService.getKeysByPrefix('conversation_');
+
+            const currentTimestamp = Math.floor(Date.now() / 1000);
             conversationKeys.forEach(async (key) => {
                 const conversation = await RedisService.getData(key);
-                await PostgresService.executeQuery(`
-                    insert into conversations (chat_id, messages, summary)
-                    values ($1, $2, $3)
-                `, [key.split('_')[1], JSON.stringify(conversation.messages), conversation.summary]);
-                await RedisService.deleteData(key);
+                const keyParts = key.split('_');
+                const chatId = keyParts[keyParts.length - 1];
+                if (currentTimestamp - conversation.createdAt < 300) { // 5 minutes
+                    return;
+                }
+                await Promise.all([
+                    PostgresService.executeQuery(`
+                    insert into conversations (chat_id, messages, summary, created_at)
+                    values ($1, $2, $3, $4)
+                `, [chatId, JSON.stringify(conversation.messages), conversation.summary,
+                        new Date(conversation.createdAt * 1000)]),
+                    RedisService.deleteData(key)
+                ]);
+                logger.info(`Persisted conversation ${key}`);
             });
         }
     }
