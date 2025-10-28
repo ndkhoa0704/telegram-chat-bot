@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const { format, transports } = winston;
 
 // Ensure logs directory exists
-const logDir = path.join(path.dirname(__dirname), 'logs');
+const logDir = path.join(path.dirname(__dirname), '..', 'logs');
 if (!fs.existsSync(logDir)) {
     fs.mkdirSync(logDir);
 }
