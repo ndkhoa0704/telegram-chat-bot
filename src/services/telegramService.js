@@ -154,8 +154,21 @@ function TelegramService() {
                         if (chatSession) {
                             const userMessage = req.body.message.text;
                             const conversation = await RedisService.getData(`conversation_${chatId}`);
-                            const replyMsg = await LmService.getResponse(userMessage)
+                            let replyMsg
+                            if (conversation?.summary) {
+                                replyMsg = await LmService.getResponse(`
+                                    Continue the conversation with the user, using the following summary to guide your response:
+                                    <summary>
+                                    ${conversation.summary}
+                                    </summary>
+                                    <user_message>
+                                    ${userMessage}
+                                    </user_message>
+                                `)
+                            } else replyMsg = await LmService.getResponse(userMessage)
+
                             SELF.sendMessage(replyMsg, chatId);
+
                             const summary = await LmService.getResponse(`
                                 Summarize the given conversation into a concise summary (<200 characters) that captures its main intent:
                                 ${userMessage}
