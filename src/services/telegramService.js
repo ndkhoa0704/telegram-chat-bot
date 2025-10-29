@@ -25,7 +25,8 @@ function TelegramService() {
                 body: JSON.stringify(postData)
             });
             if (!response.ok) {
-                logger.error(`Error in sendMessage: ${JSON.stringify(response, null, 2)}`);
+                const error = await response.json();
+                logger.error(`Error in sendMessage: ${JSON.stringify(error, null, 2)}`);
             }
         },
         commandHandlers: {
