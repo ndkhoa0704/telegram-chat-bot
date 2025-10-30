@@ -8,9 +8,6 @@ const RedisService = require('./redisService');
 
 function ScheduleService() {
     const SELF = {
-        tasks: {},
-        syncNewJob: null,
-        persistConversationJob: null,
         syncNewJobs: async () => {
             logger.info(`Syncing new jobs`);
             const jobIds = Object.keys(SELF.tasks);
@@ -32,6 +29,19 @@ function ScheduleService() {
                     await TelegramService.sendMessage(response, task.chat_id);
                 }, null, true, 'Asia/Bangkok');
             });
+        },
+        clearSessions: async () => {
+            logger.info(`Clearing sessions`);
+            const sessionKeys = await RedisService.getKeysByPrefix('session_');
+            for (const key of sessionKeys) {
+                const currentTimestamp = Math.floor(Date.now() / 1000);
+                const session = await RedisService.getData(key);
+                if (currentTimestamp - session.createdAt < 300) { // 5 minutes
+                    continue; // Skip sessions that are less than 5 minutes old
+                }
+                logger.info(`Clearing session ${key}`);
+                await RedisService.deleteData(key);
+            }
         },
         persistConversation: async () => {
             logger.info(`Persisting conversations`);
@@ -81,6 +91,10 @@ function ScheduleService() {
             SELF.persistConversationJob = new CronJob('*/10 * * * *', async () => {
                 await SELF.persistConversation();
             });
+            logger.info(`Starting clearSessions job`);
+            SELF.clearSessionsJob = new CronJob('*/5 * * * *', async () => {
+                await SELF.clearSessions();
+            });
         },
         stopJobs: (idList = []) => {
             Object.values(SELF.tasks).forEach(job => {
@@ -95,6 +109,9 @@ function ScheduleService() {
             }
             if (SELF.persistConversationJob && typeof SELF.persistConversationJob.stop === 'function') {
                 SELF.persistConversationJob.stop();
+            }
+            if (SELF.clearSessionsJob && typeof SELF.clearSessionsJob.stop === 'function') {
+                SELF.clearSessionsJob.stop();
             }
         }
     }
