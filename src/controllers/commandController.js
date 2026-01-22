@@ -2,7 +2,7 @@ const PostgresService = require('../services/databaseService');
 const RedisService = require('../services/redisService');
 const LmService = require('../services/lmService');
 const logger = require('../utils/logUtil');
-const sendMessage = require('../services/telegramService');
+const TelegramService = require('../services/telegramService');
 
 function CommandController() {
     return {
@@ -19,7 +19,7 @@ function CommandController() {
                         ? tasks.map(task =>
                             `${task.id}|\`${task.cron}\`|${task.description}`).join('\n')
                         : 'No tasks found';
-                    const response = await sendMessage(msg, chatId);
+                    const response = await TelegramService.sendMessage(msg, chatId);
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
                     logger.error(`Error in /tasks: ${error}`);
@@ -37,12 +37,12 @@ function CommandController() {
                             const cron = req.body.message.text;
                             const cronRegex = /^((((\d+,)+\d+|(\d+(\/|-|#)\d+)|\d+L?|\*(\/\d+)?|L(-\d+)?|\?|[A-Z]{3}(-[A-Z]{3})?) ?){5,7})|(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every (\d+(ns|us|µs|ms|s|m|h))+)$/;
                             if (!cronRegex.test(cron)) {
-                                await sendMessage(`Invalid cron format. Please provide a valid cron string`, chatId);
+                                await TelegramService.sendMessage(`Invalid cron format. Please provide a valid cron string`, chatId);
                                 return res.status(200).json({ status: 'ok' });
                             }
                             chatSession.data.cron = cron;
                             await RedisService.storeData(`session_${chatId}`, chatSession);
-                            const response = await sendMessage(`Give me your prompt`, chatId);
+                            const response = await TelegramService.sendMessage(`Give me your prompt`, chatId);
                             return res.status(200).json({ status: 'ok', response: response });
                         }
                         if (chatSession.data?.cron) {
@@ -60,8 +60,8 @@ function CommandController() {
                             insert into tasks (cron, prompt, description, chat_id)
                             values ($1, $2, $3, $4)
                             `, [cron, prompt, description.trim(), chatId]);
-                            await RedisService.deleteData(chatId);
-                            const response = await sendMessage(`Task created successfully`, chatId);
+                            await RedisService.deleteData(`session_${chatId}`);
+                            const response = await TelegramService.sendMessage(`Task created successfully`, chatId);
                             return res.status(200).json({ status: 'ok', response: response });
                         }
                     }
@@ -72,7 +72,7 @@ function CommandController() {
                         },
                     };
                     await RedisService.storeData(`session_${chatId}`, newChatSession)
-                    const response = await sendMessage(`Give me your cron`, chatId);
+                    const response = await TelegramService.sendMessage(`Give me your cron`, chatId);
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
                     logger.error(`Error in /createtask: ${error.stack}`);
@@ -89,7 +89,7 @@ function CommandController() {
                     const prompt = msgParts.slice(1).join(' ').trim();
                     if (!prompt) return res.status(200).json({ status: 'ok', response: 'Please provide a prompt' });
                     const replyMsg = await LmService.getResponse(prompt);
-                    const response = await sendMessage(replyMsg, chatId);
+                    const response = await TelegramService.sendMessage(replyMsg, chatId);
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
                     logger.error(`Error in /ask: ${error.stack}`);
@@ -101,7 +101,7 @@ function CommandController() {
             description: 'Hủy thao tác hiện tại',
             execute: async (req, res) => {
                 const chatId = req.body.message.chat.id;
-                const chatSession = await RedisService.getData(chatId);
+                const chatSession = await RedisService.getData(`session_${chatId}`);
                 // if chat session is conversation
                 if (chatSession?.command === '/startconversation') {
                     const conversation = await RedisService.getData(`conversation_${chatId}`);
@@ -114,7 +114,10 @@ function CommandController() {
                         RedisService.deleteData(`conversation_${chatId}`)]);
                     }
                 }
-                await Promise.all([RedisService.deleteData(chatId), sendMessage(`Operation cancelled`, chatId)]);
+                await Promise.all([
+                    RedisService.deleteData(`session_${chatId}`),
+                    TelegramService.sendMessage(`Operation cancelled`, chatId)
+                ]);
                 return res.status(200).json({ status: 'ok' });
             }
         },
@@ -127,7 +130,7 @@ function CommandController() {
                     await PostgresService.executeQuery(`
                         delete from tasks where id = $1 and chat_id = $2
                     `, [taskId, chatId]);
-                    await sendMessage(`Task deleted successfully`, chatId);
+                    await TelegramService.sendMessage(`Task deleted successfully`, chatId);
                     return res.status(200).json({ status: 'ok', response: 'Task deleted successfully' });
                 } catch (error) {
                     logger.error(`Error in /deletetask: ${error.stack}`);
@@ -143,7 +146,19 @@ function CommandController() {
                     const chatSession = await RedisService.getData(`session_${chatId}`); // 5 minutes
                     if (chatSession) {
                         const userMessage = req.body.message.text;
-                        const conversation = await RedisService.getData(`conversation_${chatId}`);
+                        const conversationKey = `conversation_${chatId}`;
+                        let conversation = await RedisService.getData(conversationKey);
+                        if (!conversation) {
+                            conversation = {
+                                messages: [],
+                                summary: '',
+                                createdAt: Math.floor(Date.now() / 1000)
+                            };
+                            await RedisService.storeData(conversationKey, conversation);
+                        }
+                        if (!Array.isArray(conversation.messages)) {
+                            conversation.messages = [];
+                        }
                         let replyMsg
                         if (conversation?.summary) {
                             replyMsg = await LmService.getResponse(`
@@ -159,7 +174,7 @@ function CommandController() {
                                 </user_message>
                             `)
                         } else replyMsg = await LmService.getResponse(userMessage)
-                        sendMessage(replyMsg, chatId);
+                        await TelegramService.sendMessage(replyMsg, chatId);
                         const summary = await LmService.getResponse(`
                             Summarize the question and answer into a concise summary (<200 characters) that captures its main intent:
                             <question>
@@ -178,11 +193,11 @@ function CommandController() {
                             content: replyMsg
                         });
                         conversation.summary = summary.trim();
-                        await RedisService.storeData(`conversation_${chatId}`, conversation);
+                        await RedisService.storeData(conversationKey, conversation);
                         return res.status(200).json({ status: 'ok' });
                     }
                     await Promise.all([
-                        sendMessage(`Hello, how can I help you today?`, chatId),
+                        TelegramService.sendMessage(`Hello, how can I help you today?`, chatId),
                         RedisService.storeData(`session_${chatId}`, {
                             command: '/startconversation',
                         }),

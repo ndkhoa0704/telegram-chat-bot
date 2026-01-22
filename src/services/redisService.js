@@ -35,7 +35,9 @@ function RedisService() {
                 cursor = result.cursor;
                 keys = keys.concat(result.keys);
             } while (cursor !== 0);
-            return keys;
+            return keys.map((key) => key.startsWith(SELF.PREFIX)
+                ? key.slice(SELF.PREFIX.length)
+                : key);
         },
         getData: async (key) => {
             const data = await SELF.client.get(SELF.PREFIX + key);

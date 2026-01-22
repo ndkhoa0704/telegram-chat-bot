@@ -46,18 +46,23 @@ function TelegramService() {
             try {
                 // Extract message data from webhook payload
                 const update = req.body;
-                if (update.message.text.startsWith('/')) {
-                    const command = update.message.text.split(' ')[0];
+                const message = update?.message;
+                const messageText = message?.text;
+                if (!message || !messageText) {
+                    return res.status(200).json({ status: 'ok' });
+                }
+                if (messageText.startsWith('/')) {
+                    const command = messageText.split(' ')[0];
                     const commandHandler = CommandController[command];
                     if (commandHandler) return commandHandler.execute(req, res);
                     return res.status(200).json({ status: 'Invalid command' });
                 }
-                const chatSession = await RedisService.getData(`session_${update.message.chat.id}`);
+                const chatSession = await RedisService.getData(`session_${message.chat.id}`);
                 logger.info(`Chat session: ${JSON.stringify(chatSession, null, 2)}`);
                 if (chatSession?.command) {
                     const commandHandler = CommandController[chatSession.command];
                     if (commandHandler) return commandHandler.execute(req, res, chatSession);
-                    await RedisService.deleteData(`session_${update.message.chat.id}`);
+                    await RedisService.deleteData(`session_${message.chat.id}`);
                     return res.status(200).json({ status: 'Invalid session' });
                 }
 

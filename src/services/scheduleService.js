@@ -8,20 +8,36 @@ const RedisService = require('./redisService');
 
 function ScheduleService() {
     const SELF = {
+        tasks: {},
+        coreJobs: {
+            syncNewJobs: null,
+            persistConversation: null,
+            clearSessions: null,
+        },
         syncNewJobs: async () => {
             logger.info(`Syncing new jobs`);
-            const jobIds = Object.keys(SELF.tasks);
+            const jobIds = Object.keys(SELF.tasks)
+                .map((jobId) => Number(jobId))
+                .filter((jobId) => Number.isFinite(jobId));
+            let newJobs = [];
             if (jobIds.length === 0) {
-                logger.info(`No jobs to sync`);
-                return;
+                logger.info(`No existing jobs, syncing all tasks`);
+                newJobs = await PostgresService.executeQuery(`
+                    select id, cron, prompt, description, chat_id
+                    from tasks
+                `);
+            } else {
+                newJobs = await PostgresService.executeQuery(`
+                    select id, cron, prompt, description, chat_id
+                    from tasks
+                    where id <> ALL($1::int[])
+                `, [jobIds]);
             }
-            const newJobs = await PostgresService.executeQuery(`
-                select id, cron, prompt, description, chat_id
-                from tasks
-                where id not in (${jobIds.join(',')})
-            `)
             logger.info(`Found ${newJobs.length} new jobs to sync`);
             newJobs.forEach(task => {
+                if (SELF.tasks[task.id]) {
+                    return;
+                }
                 logger.info(`Starting task ${task.id}`);
                 SELF.tasks[task.id] = new CronJob(task.cron, async () => {
                     logger.info(`Running task ${task.id}`);
@@ -33,9 +49,12 @@ function ScheduleService() {
         clearSessions: async () => {
             logger.info(`Clearing sessions`);
             const sessionKeys = await RedisService.getKeysByPrefix('session_');
+            const currentTimestamp = Math.floor(Date.now() / 1000);
             for (const key of sessionKeys) {
-                const currentTimestamp = Math.floor(Date.now() / 1000);
                 const session = await RedisService.getData(key);
+                if (!session || !session.createdAt) {
+                    continue;
+                }
                 if (currentTimestamp - session.createdAt < 300) { // 5 minutes
                     continue; // Skip sessions that are less than 5 minutes old
                 }
@@ -48,23 +67,28 @@ function ScheduleService() {
             const conversationKeys = await RedisService.getKeysByPrefix('conversation_');
 
             const currentTimestamp = Math.floor(Date.now() / 1000);
-            conversationKeys.forEach(async (key) => {
-                const conversation = await RedisService.getData(key);
-                const keyParts = key.split('_');
-                const chatId = keyParts[keyParts.length - 1];
-                if (currentTimestamp - conversation.createdAt < 300) { // 5 minutes
-                    return;
+            for (const key of conversationKeys) {
+                try {
+                    const conversation = await RedisService.getData(key);
+                    if (!conversation || !conversation.createdAt) {
+                        continue;
+                    }
+                    if (currentTimestamp - conversation.createdAt < 300) { // 5 minutes
+                        continue;
+                    }
+                    const keyParts = key.split('_');
+                    const chatId = keyParts[keyParts.length - 1];
+                    await PostgresService.executeQuery(`
+                        insert into conversations (chat_id, messages, summary, created_at)
+                        values ($1, $2, $3, $4)
+                    `, [chatId, JSON.stringify(conversation.messages || []), conversation.summary || '',
+                        new Date(conversation.createdAt * 1000)]);
+                    await RedisService.deleteData(key);
+                    logger.info(`Persisted conversation ${key}`);
+                } catch (error) {
+                    logger.error(`Failed to persist conversation ${key}: ${error.message || error}`);
                 }
-                await Promise.all([
-                    PostgresService.executeQuery(`
-                    insert into conversations (chat_id, messages, summary, created_at)
-                    values ($1, $2, $3, $4)
-                `, [chatId, JSON.stringify(conversation.messages), conversation.summary,
-                        new Date(conversation.createdAt * 1000)]),
-                    RedisService.deleteData(key)
-                ]);
-                logger.info(`Persisted conversation ${key}`);
-            });
+            }
         }
     }
     return {
@@ -84,34 +108,35 @@ function ScheduleService() {
             });
             logger.info(`Started ${taskData.length} jobs`);
             logger.info(`Starting syncNewJobs job`);
-            SELF.syncNewJob = new CronJob('*/5 * * * *', async () => {
+            SELF.coreJobs.syncNewJobs = new CronJob('*/5 * * * *', async () => {
                 await SELF.syncNewJobs();
-            });
+            }, null, true, 'Asia/Bangkok');
             logger.info(`Starting persistConversation job`);
-            SELF.persistConversationJob = new CronJob('*/10 * * * *', async () => {
+            SELF.coreJobs.persistConversation = new CronJob('*/10 * * * *', async () => {
                 await SELF.persistConversation();
-            });
+            }, null, true, 'Asia/Bangkok');
             logger.info(`Starting clearSessions job`);
-            SELF.clearSessionsJob = new CronJob('*/5 * * * *', async () => {
+            SELF.coreJobs.clearSessions = new CronJob('*/5 * * * *', async () => {
                 await SELF.clearSessions();
-            });
+            }, null, true, 'Asia/Bangkok');
         },
         stopJobs: (idList = []) => {
-            Object.values(SELF.tasks).forEach(job => {
-                if (idList.includes(job.id)) {
-                    if (job && typeof job.stop === 'function') {
-                        job.stop();
-                    }
+            Object.entries(SELF.tasks).forEach(([taskId, job]) => {
+                const shouldStop = idList.length === 0
+                    || idList.includes(taskId)
+                    || idList.includes(Number(taskId));
+                if (shouldStop && job && typeof job.stop === 'function') {
+                    job.stop();
                 }
             });
-            if (SELF.syncNewJob && typeof SELF.syncNewJob.stop === 'function') {
-                SELF.syncNewJob.stop();
+            if (SELF.coreJobs.syncNewJobs && typeof SELF.coreJobs.syncNewJobs.stop === 'function') {
+                SELF.coreJobs.syncNewJobs.stop();
             }
             if (SELF.persistConversationJob && typeof SELF.persistConversationJob.stop === 'function') {
-                SELF.persistConversationJob.stop();
+                SELF.coreJobs.persistConversation.stop();
             }
-            if (SELF.clearSessionsJob && typeof SELF.clearSessionsJob.stop === 'function') {
-                SELF.clearSessionsJob.stop();
+            if (SELF.coreJobs.clearSessions && typeof SELF.coreJobs.clearSessions.stop === 'function') {
+                SELF.coreJobs.clearSessions.stop();
             }
         }
     }
