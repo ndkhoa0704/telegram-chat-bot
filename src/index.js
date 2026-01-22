@@ -1,6 +1,6 @@
 const express = require('express')
 const TelegramService = require('./services/telegramService');
-const PostgresService = require('./services/databaseService');
+const DatabaseService = require('./services/databaseService');
 const LmService = require('./services/lmService');
 const ScheduleService = require('./services/scheduleService');
 const logger = require('./utils/logUtil');
@@ -19,7 +19,7 @@ app.listen(process.env.WEB_PORT, async () => {
     RedisService.connect();
     TelegramService.setupWebhook();
     TelegramService.setupCommands();
-    PostgresService.connect();
+    DatabaseService.connect();
     await ScheduleService.startJobs();
     logger.info(`Server is running on port ${process.env.WEB_PORT}`);
 })

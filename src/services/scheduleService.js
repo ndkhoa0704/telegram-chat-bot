@@ -1,5 +1,5 @@
 const CronJob = require('cron').CronJob;
-const PostgresService = require('./databaseService');
+const DatabaseService = require('./databaseService');
 const LmService = require('./lmService');
 const TelegramService = require('./telegramService');
 const logger = require('../utils/logUtil');
@@ -22,16 +22,17 @@ function ScheduleService() {
             let newJobs = [];
             if (jobIds.length === 0) {
                 logger.info(`No existing jobs, syncing all tasks`);
-                newJobs = await PostgresService.executeQuery(`
+                newJobs = await DatabaseService.executeQuery(`
                     select id, cron, prompt, description, chat_id
                     from tasks
                 `);
             } else {
-                newJobs = await PostgresService.executeQuery(`
+                const placeholders = jobIds.map(() => '?').join(', ');
+                newJobs = await DatabaseService.executeQuery(`
                     select id, cron, prompt, description, chat_id
                     from tasks
-                    where id <> ALL($1::int[])
-                `, [jobIds]);
+                    where id NOT IN (${placeholders})
+                `, jobIds);
             }
             logger.info(`Found ${newJobs.length} new jobs to sync`);
             newJobs.forEach(task => {
@@ -78,9 +79,9 @@ function ScheduleService() {
                     }
                     const keyParts = key.split('_');
                     const chatId = keyParts[keyParts.length - 1];
-                    await PostgresService.executeQuery(`
+                    await DatabaseService.executeQuery(`
                         insert into conversations (chat_id, messages, summary, created_at)
-                        values ($1, $2, $3, $4)
+                        values (?, ?, ?, ?)
                     `, [chatId, JSON.stringify(conversation.messages || []), conversation.summary || '',
                         new Date(conversation.createdAt * 1000)]);
                     await RedisService.deleteData(key);
@@ -93,7 +94,7 @@ function ScheduleService() {
     }
     return {
         startJobs: async () => {
-            const taskData = await PostgresService.executeQuery(`
+            const taskData = await DatabaseService.executeQuery(`
                 select id, cron, prompt, description, chat_id
                 from tasks
             `)

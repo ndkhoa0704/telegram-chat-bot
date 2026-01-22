@@ -1,7 +1,7 @@
 const { OpenAI } = require('openai');
 const prompts = require('../prompts');
 const tools = require('../tools');
-const PostgresService = require('./databaseService');
+const DatabaseService = require('./databaseService');
 const fsPromises = require('node:fs').promises;
 const logger = require('../utils/logUtil');
 const ConverterService = require('./converterService');
@@ -119,10 +119,10 @@ function LmService() {
                         const docx = await fsPromises.readFile(`${SELF.FILES_FOLDER_PATH}/${file}`);
                         const markdown = await ConverterService.docxToMarkdown(docx);
                         const embeding = await SELF.getEmbeddings(markdown);
-                        await PostgresService.executeQuery(`
+                        await DatabaseService.executeQuery(`
                             INSERT INTO document (filename, embeding)
-                            VALUES ($1, $2)
-                        `, [filename, embeding]);
+                            VALUES (?, ?)
+                        `, [filename, JSON.stringify(embeding)]);
                     }
                 }
             } catch (error) {

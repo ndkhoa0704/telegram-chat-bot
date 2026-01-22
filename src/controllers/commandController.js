@@ -1,4 +1,4 @@
-const PostgresService = require('../services/databaseService');
+const DatabaseService = require('../services/databaseService');
 const RedisService = require('../services/redisService');
 const LmService = require('../services/lmService');
 const logger = require('../utils/logUtil');
@@ -11,7 +11,7 @@ function CommandController() {
             execute: async (req, res) => {
                 try {
                     const chatId = req.body.message.chat.id;
-                    const tasks = await PostgresService.executeQuery(`
+                    const tasks = await DatabaseService.executeQuery(`
                         select id,cron, prompt, description
                         from tasks
                     `)
@@ -56,9 +56,9 @@ function CommandController() {
                             await RedisService.storeData(`session_${chatId}`, chatSession, {
                                 EX: 300
                             });
-                            await PostgresService.executeQuery(`
+                            await DatabaseService.executeQuery(`
                             insert into tasks (cron, prompt, description, chat_id)
-                            values ($1, $2, $3, $4)
+                            values (?, ?, ?, ?)
                             `, [cron, prompt, description.trim(), chatId]);
                             await RedisService.deleteData(`session_${chatId}`);
                             const response = await TelegramService.sendMessage(`Task created successfully`, chatId);
@@ -106,9 +106,9 @@ function CommandController() {
                 if (chatSession?.command === '/startconversation') {
                     const conversation = await RedisService.getData(`conversation_${chatId}`);
                     if (conversation) {
-                        await Promise.all([PostgresService.executeQuery(`
+                        await Promise.all([DatabaseService.executeQuery(`
                             insert into conversations (chat_id, messages, summary, created_at)
-                            values ($1, $2, $3, $4)
+                            values (?, ?, ?, ?)
                         `, [chatId, JSON.stringify(conversation.messages), conversation.summary,
                             new Date(conversation.createdAt * 1000)]),
                         RedisService.deleteData(`conversation_${chatId}`)]);
@@ -127,8 +127,8 @@ function CommandController() {
                 try {
                     const chatId = req.body.message.chat.id;
                     const taskId = req.body.message.text.split(' ')[1];
-                    await PostgresService.executeQuery(`
-                        delete from tasks where id = $1 and chat_id = $2
+                    await DatabaseService.executeQuery(`
+                        delete from tasks where id = ? and chat_id = ?
                     `, [taskId, chatId]);
                     await TelegramService.sendMessage(`Task deleted successfully`, chatId);
                     return res.status(200).json({ status: 'ok', response: 'Task deleted successfully' });

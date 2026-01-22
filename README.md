@@ -1,9 +1,9 @@
 ## Installation
 
-- Cài đặt Node.js 20+ và PostgreSQL, Redis.
-- Chạy `npm install` để cài thư viện phụ thuộc.
+- Cài đặt Bun và Redis. SQLite dùng file cục bộ, không cần cài server.
+- Chạy `bun install` để cài thư viện phụ thuộc.
 - Sao chép `.env.example` thành `.env` và cập nhật giá trị phù hợp.
-- Tùy chọn Docker: chạy `docker compose up --build` để khởi tạo server, PostgreSQL (pgvector) và Redis.
+- Tùy chọn Docker: chạy `docker compose up --build` để khởi tạo server và Redis.
 
 ## Khởi chạy bằng Docker
 
@@ -24,7 +24,7 @@
 - `WEB_PORT`: Cổng HTTP để khởi chạy server Express.
 - `TELEGRAM_BOT_TOKEN`: Token bot Telegram dùng để gửi/nhận tin nhắn.
 - `TELEGRAM_WEBHOOK_URL`: Domain công khai để Telegram gọi webhook (`https://<domain>/api/webhook`).
-- `PG_HOSTNAME`, `PG_PORT`, `PG_DATABASE`, `PG_USERNAME`, `PG_PASSWORD`: Thông số kết nối PostgreSQL.
+- `SQLITE_PATH`: Đường dẫn file SQLite (ví dụ `data/bot.db`).
 - `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`: Thông số kết nối Redis.
 - `OPENAI_API_KEY`: API key sử dụng dịch vụ OpenAI (khi không chạy mô hình cục bộ).
 - `CHAT_MODEL`, `EMBED_MODEL`: Tên mô hình chat và nhúng khi dùng OpenAI.

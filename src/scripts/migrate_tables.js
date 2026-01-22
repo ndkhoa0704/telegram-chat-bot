@@ -1,32 +1,39 @@
-const PostgresService = require('../services/databaseService');
+const DatabaseService = require('../services/databaseService');
 
 async function migrateTables() {
-    await PostgresService.executeQuery(`
-        CREATE TABLE IF NOT EXISTS public.tasks (
-        id serial4 NOT NULL,
-        description varchar(300) NULL,
-        prompt text NULL,
-        cron varchar(20) NULL,
-        chat_id varchar(100) NULL,
-        created_at timestamp DEFAULT now() NULL,
-        updated_at timestamp DEFAULT now() NULL,
-        CONSTRAINT tasks_pkey PRIMARY KEY (id)
+    await DatabaseService.executeQuery(`
+        CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        description TEXT NULL,
+        prompt TEXT NULL,
+        cron TEXT NULL,
+        chat_id TEXT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP NULL,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP NULL
     );`)
 
-    await PostgresService.executeQuery(`
-        CREATE TABLE IF NOT EXISTS public.conversations (
-        id serial4 NOT NULL,
-        chat_id varchar(100) NULL,
-        messages jsonb NULL,
-        summary text NULL,
-        created_at timestamp DEFAULT now() NULL,
-        updated_at timestamp DEFAULT now() NULL,
-        CONSTRAINT conversations_pkey PRIMARY KEY (id)
+    await DatabaseService.executeQuery(`
+        CREATE TABLE IF NOT EXISTS conversations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chat_id TEXT NULL,
+        messages TEXT NULL,
+        summary TEXT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP NULL,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP NULL
+        );
+    `)
+
+    await DatabaseService.executeQuery(`
+        CREATE TABLE IF NOT EXISTS document (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        filename TEXT NULL,
+        embeding TEXT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP NULL
         );
     `)
 }
 
-PostgresService.connect().then(async () => {
+DatabaseService.connect().then(async () => {
     await migrateTables();
-    await PostgresService.disconnect();
+    await DatabaseService.disconnect();
 });

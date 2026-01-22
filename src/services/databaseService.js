@@ -1,72 +1,43 @@
-const pg = require('pg');
-const { types } = require('pg');
-// const pgvector = require('pgvector/pg');
-types.setTypeParser(1700, (val) => val === null ? null : Number(val));
+const { Database } = require('bun:sqlite');
+const fs = require('node:fs');
+const path = require('node:path');
 
-
-function PostgresService() {
+function DatabaseService() {
     const self = {
-        pool: null,
+        db: null,
     }
     return {
         isConnected: () => {
-            return self.pool !== null;
+            return self.db !== null;
         },
         connect: () => {
-            return new Promise((resolve, _reject) => {
-                if (self.pool) return self.pool;
-                const pool = new pg.Pool({
-                    host: process.env.PG_HOSTNAME,
-                    port: process.env.PG_PORT,
-                    database: process.env.PG_DATABASE,
-                    user: process.env.PG_USERNAME,
-                    password: process.env.PG_PASSWORD,
-                });
-                // pool.on('connect', async (client) => {
-                //     await pgvector.registerTypes(client);
-                // });
-
-                self.pool = pool;
-                resolve(pool);
+            return new Promise((resolve) => {
+                if (self.db) return resolve(self.db);
+                const sqlitePath = process.env.SQLITE_PATH || path.join('data', 'bot.db');
+                const dbDir = path.dirname(sqlitePath);
+                if (dbDir && !fs.existsSync(dbDir)) {
+                    fs.mkdirSync(dbDir, { recursive: true });
+                }
+                self.db = new Database(sqlitePath, { create: true });
+                resolve(self.db);
             });
         },
         disconnect: async () => {
-            if (self.pool) {
-                await self.pool.end();
-                self.pool = null;
+            if (self.db) {
+                self.db.close();
+                self.db = null;
             }
         },
         executeQuery: async (query, params = []) => {
-            const client = await self.pool.connect();
-            let transactionStarted = false;
-            try {
-                const operation = query.trim().toLowerCase();
-                if (/^(insert|update|delete|create|drop|alter)/i.test(operation)) {
-                    transactionStarted = true;
-                    await client.query('BEGIN');
-                }
-
-                const result = await client.query(query, params);
-
-                if (transactionStarted) {
-                    await client.query('COMMIT');
-                }
-
-                return result.rows;
-            } catch (error) {
-                if (transactionStarted) {
-                    try {
-                        await client.query('ROLLBACK');
-                    } catch (rollbackError) {
-                        console.error('Rollback failed:', rollbackError);
-                    }
-                }
-                throw error;
-            } finally {
-                client.release();
+            const statement = self.db.prepare(query);
+            const operation = query.trim().toLowerCase();
+            if (/^(select|pragma|with)\b/.test(operation)) {
+                return statement.all(params);
             }
+            statement.run(params);
+            return [];
         }
     };
 }
 
-module.exports = PostgresService();
+module.exports = DatabaseService();
