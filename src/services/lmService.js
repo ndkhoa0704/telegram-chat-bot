@@ -1,10 +1,7 @@
 const { OpenAI } = require('openai');
 const prompts = require('../prompts');
 const tools = require('../tools');
-const DatabaseService = require('./databaseService');
-const fsPromises = require('node:fs').promises;
 const logger = require('../utils/logUtil');
-const ConverterService = require('./converterService');
 
 
 function LmService() {
@@ -110,25 +107,6 @@ function LmService() {
                 logger.error(`LmService.getResponse - error ${error.stack}`)
             }
         },
-        saveDocumentsFromFolder: async () => {
-            try {
-                const files = await fsPromises.readdir(SELF.FILES_FOLDER_PATH);
-                for (const file of files) {
-                    if (file.endsWith('.docx')) {
-                        const filename = file.split('.')[0];
-                        const docx = await fsPromises.readFile(`${SELF.FILES_FOLDER_PATH}/${file}`);
-                        const markdown = await ConverterService.docxToMarkdown(docx);
-                        const embeding = await SELF.getEmbeddings(markdown);
-                        await DatabaseService.executeQuery(`
-                            INSERT INTO document (filename, embeding)
-                            VALUES (?, ?)
-                        `, [filename, JSON.stringify(embeding)]);
-                    }
-                }
-            } catch (error) {
-                logger.error(error);
-            }
-        }
     }
 }
 
