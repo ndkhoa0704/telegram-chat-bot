@@ -139,7 +139,8 @@ function ScheduleService() {
             if (SELF.coreJobs.clearSessions && typeof SELF.coreJobs.clearSessions.stop === 'function') {
                 SELF.coreJobs.clearSessions.stop();
             }
-        }
+        },
+        syncNewJobs: SELF.syncNewJobs
     }
 }
 

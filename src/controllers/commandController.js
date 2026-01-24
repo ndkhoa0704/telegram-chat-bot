@@ -3,6 +3,7 @@ const RedisService = require('../services/redisService');
 const LmService = require('../services/lmService');
 const logger = require('../utils/logUtil');
 const TelegramService = require('../services/telegramService');
+const ScheduleService = require('../services/scheduleService');
 
 function CommandController() {
     return {
@@ -32,6 +33,57 @@ function CommandController() {
             execute: async (req, res, chatSession) => {
                 try {
                     const chatId = req.body.message.chat.id;
+                    const messageText = req.body.message.text.trim();
+
+                    // Check if it's a one-shot command (has content after /createtask)
+                    if (messageText.length > '/createtask'.length) {
+                        const userRequest = messageText.replace('/createtask', '').trim();
+                        logger.info(`Processing natural language task request: ${userRequest}`);
+
+                        await TelegramService.sendMessage("Processing your request...", chatId);
+
+                        const rawResponse = await LmService.getResponse(`
+                            ${require('../prompts').task_parser}
+                            
+                            User Input: "${userRequest}"
+                        `, false);
+
+                        let parsedTask;
+                        try {
+                            // Clean up json if wrapped in markdown code blocks
+                            const jsonStr = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                            parsedTask = JSON.parse(jsonStr);
+                        } catch (e) {
+                            logger.error(`Failed to parse AI response: ${rawResponse}`);
+                            await TelegramService.sendMessage("Sorry, I couldn't understand the schedule format.", chatId);
+                            return res.status(200).json({ status: 'ok' });
+                        }
+
+                        if (!parsedTask.cron || !parsedTask.prompt) {
+                            await TelegramService.sendMessage("Could not extract valid cron or prompt.", chatId);
+                            return res.status(200).json({ status: 'ok' });
+                        }
+
+                        // Validate cron
+                        const cronRegex = /^((((\d+,)+\d+|(\d+(\/|-|#)\d+)|\d+L?|\*(\/\d+)?|L(-\d+)?|\?|[A-Z]{3}(-[A-Z]{3})?) ?){5,7})|(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every (\d+(ns|us|µs|ms|s|m|h))+)$/;
+                        if (!cronRegex.test(parsedTask.cron)) {
+                            await TelegramService.sendMessage(`Invalid cron format generated: ${parsedTask.cron}`, chatId);
+                            return res.status(200).json({ status: 'ok' });
+                        }
+
+                        await DatabaseService.executeQuery(`
+                            insert into tasks (cron, prompt, description, chat_id)
+                            values (?, ?, ?, ?)
+                        `, [parsedTask.cron, parsedTask.prompt, parsedTask.prompt, chatId]);
+
+                        // Trigger sync immediately
+                        ScheduleService.syncNewJobs();
+
+                        const response = await TelegramService.sendMessage(`Task created!\nCron: \`${parsedTask.cron}\`\nPrompt: ${parsedTask.prompt}`, chatId);
+                        return res.status(200).json({ status: 'ok', response: response });
+                    }
+
+                    // Original interactive flow
                     if (chatSession) {
                         if (!chatSession.data?.cron) {
                             const cron = req.body.message.text;
@@ -61,6 +113,10 @@ function CommandController() {
                             values (?, ?, ?, ?)
                             `, [cron, prompt, description.trim(), chatId]);
                             await RedisService.deleteData(`session_${chatId}`);
+
+                            // Trigger sync
+                            ScheduleService.syncNewJobs();
+
                             const response = await TelegramService.sendMessage(`Task created successfully`, chatId);
                             return res.status(200).json({ status: 'ok', response: response });
                         }
