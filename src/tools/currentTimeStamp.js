@@ -1,4 +1,4 @@
-const logger = require('../utils/logUtil');
+const logger = require('../utils/log.util');
 
 module.exports = {
     type: "function",

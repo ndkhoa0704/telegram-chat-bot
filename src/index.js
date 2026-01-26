@@ -1,10 +1,10 @@
 const express = require('express')
-const TelegramService = require('./services/telegramService');
-const DatabaseService = require('./services/databaseService');
-const LmService = require('./services/lmService');
-const ScheduleService = require('./services/scheduleService');
-const logger = require('./utils/logUtil');
-const RedisService = require('./services/redisService');
+const TelegramService = require('./services/telegram.service');
+const DatabaseService = require('./services/database.service');
+const LmService = require('./services/lm.service');
+const ScheduleService = require('./services/schedule.service');
+const logger = require('./utils/log.util');
+const RedisService = require('./services/redis.service');
 
 const app = express();
 
@@ -25,9 +25,12 @@ app.listen(process.env.WEB_PORT, async () => {
 })
 
 async function gracefulShutdown() {
-    await TelegramService.deleteWebhook();
+    TelegramService.deleteWebhook();
     ScheduleService.stopJobs();
-    process.exit(0);
+    DatabaseService.disconnect();
+    RedisService.disconnect();
+    logger.info('Server is shutting down');
+    process.exit(1);
 }
 
 

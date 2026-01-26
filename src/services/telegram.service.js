@@ -1,6 +1,6 @@
-const logger = require('../utils/logUtil');
-const RedisService = require('./redisService');
-const CommandController = require('../controllers/commandController');
+const logger = require('../utils/log.util');
+const RedisService = require('./redis.service');
+const CommandController = require('../controllers/command.controller');
 
 
 function TelegramService() {

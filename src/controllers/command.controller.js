@@ -1,9 +1,9 @@
-const DatabaseService = require('../services/databaseService');
-const RedisService = require('../services/redisService');
-const LmService = require('../services/lmService');
-const logger = require('../utils/logUtil');
-const TelegramService = require('../services/telegramService');
-const ScheduleService = require('../services/scheduleService');
+const DatabaseService = require('../services/database.service');
+const RedisService = require('../services/redis.service');
+const LmService = require('../services/lm.service');
+const logger = require('../utils/log.util');
+const TelegramService = require('../services/telegram.service');
+const ScheduleService = require('../services/schedule.service');
 
 function CommandController() {
     return {

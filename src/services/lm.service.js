@@ -1,28 +1,19 @@
 const { OpenAI } = require('openai');
 const prompts = require('../prompts');
 const tools = require('../tools');
-const logger = require('../utils/logUtil');
+const logger = require('../utils/log.util');
 
 
 function LmService() {
     const SELF = {
         chatClient: null,
-        embeddingClient: null,
         chatModel: null,
-        embeddingModel: null,
         removeThinkBlock: (text) => {
             if (!text.includes('</think>')) return text;
             const parts = text.split('</think>')
             return parts[parts.length - 1]
         },
         FILES_FOLDER_PATH: process.env.FILES_FOLDER_PATH,
-        getEmbeddings: async (text) => {
-            const response = await SELF.embeddingClient.embeddings.create({
-                model: SELF.embeddingModel,
-                input: text,
-            })
-            return response.data[0].embedding;
-        },
         MAX_TOOL_CALLS: 3
     }
     return {
@@ -32,22 +23,13 @@ function LmService() {
                     baseURL: process.env.LOCAL_CHAT_MODEL_URL,
                 })
                 SELF.chatModel = process.env.LOCAL_CHAT_MODEL
-                SELF.embeddingClient = new OpenAI({
-                    baseURL: process.env.LOCAL_EMBED_MODEL_URL,
-                })
-                SELF.embeddingModel = process.env.LOCAL_EMBED_MODEL
             } else {
                 SELF.chatClient = new OpenAI({
                     apiKey: process.env.OPENAI_API_KEY,
                 })
                 SELF.chatModel = process.env.CHAT_MODEL
-                SELF.embeddingClient = new OpenAI({
-                    apiKey: process.env.OPENAI_API_KEY,
-                })
-                SELF.embeddingModel = process.env.EMBED_MODEL
             }
             logger.info(`${SELF.chatModel} initialized`);
-            logger.info(`${SELF.embeddingModel} initialized`);
         },
         getResponse: async (message, toolUse = true) => {
             try {

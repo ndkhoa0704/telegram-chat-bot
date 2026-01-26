@@ -1,10 +1,10 @@
 const redis = require('redis');
-const logger = require('../utils/logUtil');
+const logger = require('../utils/log.util');
 
 function RedisService() {
     const SELF = {
         client: null,
-        PREFIX: 'telegram_chat_bot_',
+        PREFIX: 'telegram_chat_bot:',
     }
     return {
         connect: async () => {

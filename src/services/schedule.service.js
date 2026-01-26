@@ -1,9 +1,9 @@
 const CronJob = require('cron').CronJob;
-const DatabaseService = require('./databaseService');
-const LmService = require('./lmService');
-const TelegramService = require('./telegramService');
-const logger = require('../utils/logUtil');
-const RedisService = require('./redisService');
+const DatabaseService = require('./database.service');
+const LmService = require('./lm.service');
+const TelegramService = require('./telegram.service');
+const logger = require('../utils/log.util');
+const RedisService = require('./redis.service');
 
 
 function ScheduleService() {
@@ -122,22 +122,28 @@ function ScheduleService() {
             }, null, true, 'Asia/Bangkok');
         },
         stopJobs: (idList = []) => {
+            const stopAll = idList.length === 0;
+            // Convert to Set of strings for efficient lookup and type safety
+            const idsToStop = new Set(idList.map(id => String(id)));
+
             Object.entries(SELF.tasks).forEach(([taskId, job]) => {
-                const shouldStop = idList.length === 0
-                    || idList.includes(taskId)
-                    || idList.includes(Number(taskId));
+                const shouldStop = stopAll || idsToStop.has(taskId);
                 if (shouldStop && job && typeof job.stop === 'function') {
                     job.stop();
                 }
             });
-            if (SELF.coreJobs.syncNewJobs && typeof SELF.coreJobs.syncNewJobs.stop === 'function') {
-                SELF.coreJobs.syncNewJobs.stop();
-            }
-            if (SELF.persistConversationJob && typeof SELF.persistConversationJob.stop === 'function') {
-                SELF.coreJobs.persistConversation.stop();
-            }
-            if (SELF.coreJobs.clearSessions && typeof SELF.coreJobs.clearSessions.stop === 'function') {
-                SELF.coreJobs.clearSessions.stop();
+
+            // Only stop core jobs if we are stopping EVERYTHING (empty idList)
+            if (stopAll) {
+                if (SELF.coreJobs.syncNewJobs && typeof SELF.coreJobs.syncNewJobs.stop === 'function') {
+                    SELF.coreJobs.syncNewJobs.stop();
+                }
+                if (SELF.coreJobs.persistConversation && typeof SELF.coreJobs.persistConversation.stop === 'function') {
+                    SELF.coreJobs.persistConversation.stop();
+                }
+                if (SELF.coreJobs.clearSessions && typeof SELF.coreJobs.clearSessions.stop === 'function') {
+                    SELF.coreJobs.clearSessions.stop();
+                }
             }
         },
         syncNewJobs: SELF.syncNewJobs
