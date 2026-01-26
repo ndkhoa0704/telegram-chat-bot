@@ -23,7 +23,7 @@ function CommandController() {
                     const response = await TelegramService.sendMessage(msg, chatId);
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
-                    logger.error(`Error in /tasks: ${error}`);
+                    logger.error(`Error in /tasks: ${error.stack}`);
                     return res.status(200).json({ status: 'ok' });
                 }
             }

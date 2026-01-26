@@ -121,7 +121,7 @@ function ScheduleService() {
                 await SELF.clearSessions();
             }, null, true, 'Asia/Bangkok');
         },
-        stopJobs: (idList = []) => {
+        stopJobs: async (idList = []) => {
             const stopAll = idList.length === 0;
             // Convert to Set of strings for efficient lookup and type safety
             const idsToStop = new Set(idList.map(id => String(id)));

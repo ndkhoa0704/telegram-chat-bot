@@ -7,7 +7,7 @@ function TelegramService() {
     const SELF = {
         BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
         API_URL: `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`,
-        WEBHOOK_URL: `https://${process.env.TELEGRAM_WEBHOOK_URL}/api/webhook`,
+        WEBHOOK_URL: `https://${process.env.TELEGRAM_WEBHOOK_HOSTNAME}/api/webhook`,
         SEND_MSG_URL: `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
         sendMessage: async (msg, chatId) => {
             const postData = {

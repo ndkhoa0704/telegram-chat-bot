@@ -25,10 +25,10 @@ app.listen(process.env.WEB_PORT, async () => {
 })
 
 async function gracefulShutdown() {
-    TelegramService.deleteWebhook();
-    ScheduleService.stopJobs();
-    DatabaseService.disconnect();
-    RedisService.disconnect();
+    await TelegramService.deleteWebhook();
+    await ScheduleService.stopJobs();
+    await DatabaseService.disconnect();
+    await RedisService.disconnect();
     logger.info('Server is shutting down');
     process.exit(1);
 }

@@ -15,7 +15,7 @@ function RedisService() {
                         host: process.env.REDIS_HOST,
                         port: process.env.REDIS_PORT,
                     },
-                    password: process.env.REDIS_PASSWORD, // Use password from config
+                    password: process.env.REDIS_PASSWORD,
                 });
                 SELF.client.on('error', (err) => {
                     logger.error(`Redis client error: ${err.stack}`);
