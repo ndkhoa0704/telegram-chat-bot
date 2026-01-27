@@ -1,7 +1,7 @@
-const { sql } = require('bun');
 const { Database } = require('bun:sqlite');
 const fs = require('node:fs');
 const path = require('node:path');
+
 
 function DatabaseService() {
     const self = {
