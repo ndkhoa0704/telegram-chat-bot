@@ -1,4 +1,4 @@
-const { OpenAI } = require('openai');
+const { OpenRouter } = require('@openrouter/sdk');
 const prompts = require('../prompts');
 const tools = require('../tools');
 const logger = require('../utils/log.util');
@@ -18,17 +18,10 @@ function LmService() {
     }
     return {
         init: () => {
-            if (process.env.USE_LOCAL_AI === '1') {
-                SELF.chatClient = new OpenAI({
-                    baseURL: process.env.LOCAL_CHAT_MODEL_URL,
-                })
-                SELF.chatModel = process.env.LOCAL_CHAT_MODEL
-            } else {
-                SELF.chatClient = new OpenAI({
-                    apiKey: process.env.OPENAI_API_KEY,
-                })
-                SELF.chatModel = process.env.CHAT_MODEL
-            }
+            SELF.chatClient = new OpenRouter({
+                apiKey: process.env.OPENROUTER_API_KEY,
+            })
+            SELF.chatModel = process.env.CHAT_MODEL
             logger.info(`${SELF.chatModel} initialized`);
         },
         getResponse: async (message, toolUse = true) => {
@@ -39,7 +32,7 @@ function LmService() {
                 ];
                 if (toolUse) {
                     for (let i = 0; i < SELF.MAX_TOOL_CALLS; i++) {
-                        const response = await SELF.chatClient.chat.completions.create({
+                        const response = await SELF.chatClient.chat.send({
                             model: SELF.chatModel,
                             messages: messages,
                             tools: tools,
@@ -71,14 +64,14 @@ function LmService() {
                         }
                     }
                     // Reached max tool calls; force model to produce an answer without further tool use
-                    const finalResponse = await SELF.chatClient.chat.completions.create({
+                    const finalResponse = await SELF.chatClient.chat.send({
                         model: SELF.chatModel,
                         messages: messages,
                         tool_choice: 'none',
                     })
                     return SELF.removeThinkBlock(finalResponse.choices[0].message?.content || '');
                 }
-                const response = await SELF.chatClient.chat.completions.create({
+                const response = await SELF.chatClient.chat.send({
                     model: SELF.chatModel,
                     messages: messages,
                     tools: tools,

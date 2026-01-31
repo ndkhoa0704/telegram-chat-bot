@@ -26,11 +26,8 @@
 - `TELEGRAM_WEBHOOK_URL`: Domain công khai để Telegram gọi webhook (`https://<domain>/api/webhook`).
 - `SQLITE_PATH`: Đường dẫn file SQLite (ví dụ `data/bot.db`).
 - `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`: Thông số kết nối Redis.
-- `OPENAI_API_KEY`: API key sử dụng dịch vụ OpenAI (khi không chạy mô hình cục bộ).
-- `CHAT_MODEL`, `EMBED_MODEL`: Tên mô hình chat và nhúng khi dùng OpenAI.
-- `USE_LOCAL_AI`: Đặt `1` để dùng mô hình cục bộ, giá trị khác để dùng OpenAI.
-- `LOCAL_CHAT_MODEL_URL`, `LOCAL_CHAT_MODEL`: Endpoint và tên mô hình chat cục bộ.
-- `LOCAL_EMBED_MODEL_URL`, `LOCAL_EMBED_MODEL`: Endpoint và tên mô hình nhúng cục bộ.
+- `OPENROUTER_API_KEY`: API key sử dụng dịch vụ OpenRouter.
+- `CHAT_MODEL`: Tên mô hình chat trên OpenRouter (ví dụ `openai/gpt-4`, `anthropic/claude-3-opus`).
 - `FILES_FOLDER_PATH`: Đường dẫn thư mục chứa tài liệu `.docx` để lập chỉ mục.
 - `BRAVE_SEARCH_API_KEY`: API key cho công cụ tìm kiếm Brave (dùng trong tool).
 
