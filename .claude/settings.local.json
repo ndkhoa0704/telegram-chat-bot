@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__MCP_DOCKER__resolve-library-id",
+      "Bash(bun run dev)"
+    ]
+  }
+}

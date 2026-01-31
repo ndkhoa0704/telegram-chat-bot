@@ -1,11 +1,37 @@
 const logger = require('../utils/log.util');
-const DatabaseService = require('./database.service');
 const RedisService = require('./redis.service');
+const DatabaseService = require('./database.service');
 const LmService = require('./lm.service');
 const ScheduleService = require('./schedule.service');
 
-function createCommandController(sendMessage) {
-    return {
+
+function TelegramService() {
+    const SELF = {
+        BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+        API_URL: `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`,
+        WEBHOOK_URL: `https://${process.env.TELEGRAM_WEBHOOK_HOSTNAME}/api/webhook`,
+        SEND_MSG_URL: `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+        sendMessage: async (msg, chatId) => {
+            const postData = {
+                chat_id: chatId,
+                text: msg,
+                parse_mode: 'markdown'
+            };
+
+            const response = await fetch(SELF.SEND_MSG_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(postData)
+            });
+            if (!response.ok) {
+                const error = await response.json();
+                logger.error(`Error in sendMessage: ${JSON.stringify(error, null, 2)}`);
+            }
+        }
+    }
+    const COMMAND_HANDLERS = {
         '/tasks': {
             description: 'Hiển thị danh sách tất cả các task đã tạo',
             execute: async (req, res) => {
@@ -19,7 +45,7 @@ function createCommandController(sendMessage) {
                         ? tasks.map(task =>
                             `${task.id}|\`${task.cron}\`|${task.description}`).join('\n')
                         : 'No tasks found';
-                    const response = await sendMessage(msg, chatId);
+                    const response = await SELF.sendMessage(msg, chatId);
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
                     logger.error(`Error in /tasks: ${error.stack}`);
@@ -39,11 +65,11 @@ function createCommandController(sendMessage) {
                         const userRequest = messageText.replace('/createtask', '').trim();
                         logger.info(`Processing natural language task request: ${userRequest}`);
 
-                        await sendMessage("Processing your request...", chatId);
+                        await SELF.sendMessage("Processing your request...", chatId);
 
                         const rawResponse = await LmService.getResponse(`
                             ${require('../prompts').task_parser}
-                            
+
                             User Input: "${userRequest}"
                         `, false);
 
@@ -54,19 +80,19 @@ function createCommandController(sendMessage) {
                             parsedTask = JSON.parse(jsonStr);
                         } catch (_e) {
                             logger.error(`Failed to parse AI response: ${rawResponse}`);
-                            await sendMessage("Sorry, I couldn't understand the schedule format.", chatId);
+                            await SELF.sendMessage("Sorry, I couldn't understand the schedule format.", chatId);
                             return res.status(200).json({ status: 'ok' });
                         }
 
                         if (!parsedTask.cron || !parsedTask.prompt) {
-                            await sendMessage("Could not extract valid cron or prompt.", chatId);
+                            await SELF.sendMessage("Could not extract valid cron or prompt.", chatId);
                             return res.status(200).json({ status: 'ok' });
                         }
 
                         // Validate cron
                         const cronRegex = /^((((\d+,)+\d+|(\d+(\/|-|#)\d+)|\d+L?|\*(\/\d+)?|L(-\d+)?|\?|[A-Z]{3}(-[A-Z]{3})?) ?){5,7})|(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every (\d+(ns|us|µs|ms|s|m|h))+)$/;
                         if (!cronRegex.test(parsedTask.cron)) {
-                            await sendMessage(`Invalid cron format generated: ${parsedTask.cron}`, chatId);
+                            await SELF.sendMessage(`Invalid cron format generated: ${parsedTask.cron}`, chatId);
                             return res.status(200).json({ status: 'ok' });
                         }
 
@@ -78,7 +104,7 @@ function createCommandController(sendMessage) {
                         // Trigger sync immediately
                         ScheduleService.syncNewJobs();
 
-                        const response = await sendMessage(`Task created!\nCron: \`${parsedTask.cron}\`\nPrompt: ${parsedTask.prompt}`, chatId);
+                        const response = await SELF.sendMessage(`Task created!\nCron: \`${parsedTask.cron}\`\nPrompt: ${parsedTask.prompt}`, chatId);
                         return res.status(200).json({ status: 'ok', response: response });
                     }
 
@@ -88,12 +114,12 @@ function createCommandController(sendMessage) {
                             const cron = req.body.message.text;
                             const cronRegex = /^((((\d+,)+\d+|(\d+(\/|-|#)\d+)|\d+L?|\*(\/\d+)?|L(-\d+)?|\?|[A-Z]{3}(-[A-Z]{3})?) ?){5,7})|(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every (\d+(ns|us|µs|ms|s|m|h))+)$/;
                             if (!cronRegex.test(cron)) {
-                                await sendMessage(`Invalid cron format. Please provide a valid cron string`, chatId);
+                                await SELF.sendMessage(`Invalid cron format. Please provide a valid cron string`, chatId);
                                 return res.status(200).json({ status: 'ok' });
                             }
                             chatSession.data.cron = cron;
                             await RedisService.storeData(`session_${chatId}`, chatSession);
-                            const response = await sendMessage(`Give me your prompt`, chatId);
+                            const response = await SELF.sendMessage(`Give me your prompt`, chatId);
                             return res.status(200).json({ status: 'ok', response: response });
                         }
                         if (chatSession.data?.cron) {
@@ -116,7 +142,7 @@ function createCommandController(sendMessage) {
                             // Trigger sync
                             ScheduleService.syncNewJobs();
 
-                            const response = await sendMessage(`Task created successfully`, chatId);
+                            const response = await SELF.sendMessage(`Task created successfully`, chatId);
                             return res.status(200).json({ status: 'ok', response: response });
                         }
                     }
@@ -127,10 +153,85 @@ function createCommandController(sendMessage) {
                         },
                     };
                     await RedisService.storeData(`session_${chatId}`, newChatSession);
-                    const response = await sendMessage(`Give me your cron`, chatId);
+                    const response = await SELF.sendMessage(`Give me your cron`, chatId);
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
                     logger.error(`Error in /createtask: ${error.stack}`);
+                    return res.status(200).json({ status: 'ok' });
+                }
+            }
+        },
+        '/order': {
+            description: 'Tạo task tự động từ yêu cầu của bạn',
+            execute: async (req, res) => {
+                try {
+                    const chatId = req.body.message.chat.id;
+                    const messageText = req.body.message.text.trim();
+
+                    // Get user request after /order command
+                    const userRequest = messageText.replace('/order', '').trim();
+
+                    if (!userRequest) {
+                        await SELF.sendMessage("Vui lòng mô tả yêu cầu của bạn.\nVí dụ: `/order Nhắc tôi tập thể dục mỗi sáng lúc 7 giờ`", chatId);
+                        return res.status(200).json({ status: 'ok' });
+                    }
+
+                    logger.info(`Processing order request: ${userRequest}`);
+                    await SELF.sendMessage("Đang xử lý yêu cầu của bạn...", chatId);
+
+                    // Use LM service to parse the user request
+                    const rawResponse = await LmService.getResponse(`
+                        ${require('../prompts').task_parser}
+
+                        User Input: "${userRequest}"
+                    `, false);
+
+                    let parsedTask;
+                    try {
+                        // Clean up json if wrapped in markdown code blocks
+                        const jsonStr = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                        parsedTask = JSON.parse(jsonStr);
+                    } catch (_e) {
+                        logger.error(`Failed to parse AI response: ${rawResponse}`);
+                        await SELF.sendMessage("Xin lỗi, tôi không hiểu được yêu cầu của bạn. Vui lòng thử lại với mô tả rõ ràng hơn.", chatId);
+                        return res.status(200).json({ status: 'ok' });
+                    }
+
+                    // Validate parsed task
+                    if (!parsedTask.cron || !parsedTask.prompt) {
+                        await SELF.sendMessage("Không thể tạo task từ yêu cầu của bạn. Vui lòng mô tả rõ hơn về thời gian và hành động cần thực hiện.", chatId);
+                        return res.status(200).json({ status: 'ok' });
+                    }
+
+                    // Validate cron expression
+                    const cronRegex = /^((((\d+,)+\d+|(\d+(\/|-|#)\d+)|\d+L?|\*(\/\d+)?|L(-\d+)?|\?|[A-Z]{3}(-[A-Z]{3})?) ?){5,7})|(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every (\d+(ns|us|µs|ms|s|m|h))+)$/;
+                    if (!cronRegex.test(parsedTask.cron)) {
+                        await SELF.sendMessage(`Lỗi: Cron expression không hợp lệ: ${parsedTask.cron}`, chatId);
+                        return res.status(200).json({ status: 'ok' });
+                    }
+
+                    // Create task in database
+                    await DatabaseService.executeQuery(`
+                        insert into tasks (cron, prompt, description, chat_id)
+                        values (?, ?, ?, ?)
+                    `, [parsedTask.cron, parsedTask.prompt, parsedTask.prompt, chatId]);
+
+                    // Sync with schedule service immediately
+                    ScheduleService.syncNewJobs();
+
+                    // Send success message
+                    const response = await SELF.sendMessage(
+                        `✅ Task đã được tạo thành công!\n\n` +
+                        `📅 Schedule: \`${parsedTask.cron}\`\n` +
+                        `📝 Hành động: ${parsedTask.prompt}`,
+                        chatId
+                    );
+
+                    return res.status(200).json({ status: 'ok', response: response });
+                } catch (error) {
+                    logger.error(`Error in /order: ${error.stack}`);
+                    const chatId = req.body.message.chat.id;
+                    await SELF.sendMessage("Đã có lỗi xảy ra. Vui lòng thử lại sau.", chatId);
                     return res.status(200).json({ status: 'ok' });
                 }
             }
@@ -144,7 +245,7 @@ function createCommandController(sendMessage) {
                     const prompt = msgParts.slice(1).join(' ').trim();
                     if (!prompt) return res.status(200).json({ status: 'ok', response: 'Please provide a prompt' });
                     const replyMsg = await LmService.getResponse(prompt);
-                    const response = await sendMessage(replyMsg, chatId);
+                    const response = await SELF.sendMessage(replyMsg, chatId);
                     return res.status(200).json({ status: 'ok', response: response });
                 } catch (error) {
                     logger.error(`Error in /ask: ${error.stack}`);
@@ -171,7 +272,7 @@ function createCommandController(sendMessage) {
                 }
                 await Promise.all([
                     RedisService.deleteData(`session_${chatId}`),
-                    sendMessage(`Operation cancelled`, chatId)
+                    SELF.sendMessage(`Operation cancelled`, chatId)
                 ]);
                 return res.status(200).json({ status: 'ok' });
             }
@@ -185,7 +286,7 @@ function createCommandController(sendMessage) {
                     await DatabaseService.executeQuery(`
                         delete from tasks where id = ? and chat_id = ?
                     `, [taskId, chatId]);
-                    await sendMessage(`Task deleted successfully`, chatId);
+                    await SELF.sendMessage(`Task deleted successfully`, chatId);
                     return res.status(200).json({ status: 'ok', response: 'Task deleted successfully' });
                 } catch (error) {
                     logger.error(`Error in /deletetask: ${error.stack}`);
@@ -229,7 +330,7 @@ function createCommandController(sendMessage) {
                                 </user_message>
                             `);
                         } else replyMsg = await LmService.getResponse(userMessage);
-                        await sendMessage(replyMsg, chatId);
+                        await SELF.sendMessage(replyMsg, chatId);
                         const summary = await LmService.getResponse(`
                             Summarize the question and answer into a concise summary (<200 characters) that captures its main intent:
                             <question>
@@ -252,7 +353,7 @@ function createCommandController(sendMessage) {
                         return res.status(200).json({ status: 'ok' });
                     }
                     await Promise.all([
-                        sendMessage(`Hello, how can I help you today?`, chatId),
+                        SELF.sendMessage(`Hello, how can I help you today?`, chatId),
                         RedisService.storeData(`session_${chatId}`, {
                             command: '/startconversation',
                         }),
@@ -268,39 +369,29 @@ function createCommandController(sendMessage) {
                     return res.status(200).json({ status: 'ok' });
                 }
             }
-        }
-    };
-}
-
-
-function TelegramService() {
-    const SELF = {
-        BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
-        API_URL: `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`,
-        WEBHOOK_URL: `https://${process.env.TELEGRAM_WEBHOOK_HOSTNAME}/api/webhook`,
-        SEND_MSG_URL: `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
-        sendMessage: async (msg, chatId) => {
-            const postData = {
-                chat_id: chatId,
-                text: msg,
-                parse_mode: 'markdown'
-            };
-
-            const response = await fetch(SELF.SEND_MSG_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(postData)
-            });
-            if (!response.ok) {
-                const error = await response.json();
-                logger.error(`Error in sendMessage: ${JSON.stringify(error, null, 2)}`);
+        },
+        '/stopconversation': {
+            description: "Kết thúc cuộc hội thoại",
+            execute: async (req, res) => {
+                try {
+                    const chatId = req.body.message.chat.id;
+                    const chatSession = await RedisService.getData(`session_${chatId}`);
+                    if (chatSession) {
+                        await Promise.all([
+                            RedisService.deleteData(`session_${chatId}`),
+                            SELF.sendMessage(`Conversation ended`, chatId)
+                        ]);
+                        return res.status(200).json({ status: 'ok' });
+                    }
+                    return res.status(200).json({ status: 'ok' });
+                } catch (error) {
+                    logger.error(`Error in /stopconversation: ${error.stack}`);
+                    return res.status(200).json({ status: 'ok' });
+                }
             }
         }
     }
 
-    const commandController = createCommandController(SELF.sendMessage);
 
     return {
         setupWebhook: async () => {
@@ -325,14 +416,14 @@ function TelegramService() {
                 }
                 if (messageText.startsWith('/')) {
                     const command = messageText.split(' ')[0];
-                    const commandHandler = commandController[command];
+                    const commandHandler = COMMAND_HANDLERS[command];
                     if (commandHandler) return commandHandler.execute(req, res);
                     return res.status(200).json({ status: 'Invalid command' });
                 }
                 const chatSession = await RedisService.getData(`session_${message.chat.id}`);
                 logger.info(`Chat session: ${JSON.stringify(chatSession, null, 2)}`);
                 if (chatSession?.command) {
-                    const commandHandler = commandController[chatSession.command];
+                    const commandHandler = COMMAND_HANDLERS[chatSession.command];
                     if (commandHandler) return commandHandler.execute(req, res, chatSession);
                     await RedisService.deleteData(`session_${message.chat.id}`);
                     return res.status(200).json({ status: 'Invalid session' });
@@ -349,9 +440,9 @@ function TelegramService() {
             return SELF.sendMessage(msg, chatId);
         },
         setupCommands: async () => {
-            const commands = Object.keys(commandController).map(command => ({
+            const commands = Object.keys(COMMAND_HANDLERS).map(command => ({
                 command: command,
-                description: commandController[command].description
+                description: COMMAND_HANDLERS[command].description
             }));
             const response = await fetch(`${SELF.API_URL}/setMyCommands`, {
                 method: 'POST',

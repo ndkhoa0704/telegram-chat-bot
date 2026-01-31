@@ -64,13 +64,14 @@ function RedisService() {
             if (!SELF.client) {
                 await module.exports.connect();
             }
-            let cursor = 0;
+            let cursor = '0';
             let keys = [];
             do {
-                const result = await SELF.client.scan(cursor, 'MATCH', `${SELF.PREFIX}${prefix}*`, 'COUNT', 1000);
-                cursor = result.cursor;
-                keys = keys.concat(result.keys);
-            } while (cursor !== 0);
+                // Bun's Redis client returns [nextCursor, keys] array format
+                const result = await SELF.client.send('SCAN', [cursor, 'MATCH', `${SELF.PREFIX}${prefix}*`, 'COUNT', '1000']);
+                cursor = String(result[0]);
+                keys = keys.concat(result[1] || []);
+            } while (cursor !== '0');
             return keys.map((key) => key.startsWith(SELF.PREFIX)
                 ? key.slice(SELF.PREFIX.length)
                 : key);
