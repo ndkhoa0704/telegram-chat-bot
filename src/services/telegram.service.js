@@ -4,14 +4,13 @@ const DatabaseService = require('./database.service');
 const LmService = require('./lm.service');
 const ScheduleService = require('./schedule.service');
 
-
 function TelegramService() {
     const SELF = {
         BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
         API_URL: `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`,
         WEBHOOK_URL: `https://${process.env.TELEGRAM_WEBHOOK_HOSTNAME}/api/webhook`,
         SEND_MSG_URL: `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
-        sendMessage: async (msg, chatId) => {
+        sendMessage: async (msg, chatId, options = {}) => {
             const postData = {
                 chat_id: chatId,
                 text: msg,
@@ -29,24 +28,42 @@ function TelegramService() {
                 const error = await response.json();
                 logger.error(`Error in sendMessage: ${JSON.stringify(error, null, 2)}`);
             }
+            // Return options for tracking (e.g., excludeFromContext flag)
+            return { ...options };
         }
     }
     const COMMAND_HANDLERS = {
         '/tasks': {
             description: 'Hiển thị danh sách tất cả các task đã tạo',
-            execute: async (req, res) => {
+            isConversationCommand: false,
+            execute: async (req, res, chatSession) => {
                 try {
                     const chatId = req.body.message.chat.id;
-                    const tasks = await DatabaseService.executeQuery(`
-                        select id,cron, prompt, description
-                        from tasks
-                    `);
-                    const msg = tasks?.length
-                        ? tasks.map(task =>
-                            `${task.id}|\`${task.cron}\`|${task.description}`).join('\n')
-                        : 'No tasks found';
-                    const response = await SELF.sendMessage(msg, chatId);
-                    return res.status(200).json({ status: 'ok', response: response });
+
+                    // Interactive flow: if session exists, user is providing input
+                    if (chatSession?.command === '/tasks') {
+                        // User responded, now show tasks
+                        const tasks = await DatabaseService.executeQuery(`
+                            select id, cron, prompt, description
+                            from tasks
+                            where chat_id = ?
+                        `, [chatId]);
+                        const msg = tasks?.length
+                            ? tasks.map(task =>
+                                `${task.id}|\`${task.cron}\`|${task.description}`).join('\n')
+                            : 'Không có task nào.';
+                        await SELF.sendMessage(msg, chatId);
+                        await RedisService.deleteData(`session_${chatId}`);
+                        return res.status(200).json({ status: 'ok' });
+                    }
+
+                    // First call: ask user what they want
+                    await RedisService.storeData(`session_${chatId}`, {
+                        command: '/tasks',
+                        data: {}
+                    });
+                    await SELF.sendMessage('Bạn muốn xem danh sách task? Gửi bất kỳ tin nhắn nào để tiếp tục.', chatId);
+                    return res.status(200).json({ status: 'ok' });
                 } catch (error) {
                     logger.error(`Error in /tasks: ${error.stack}`);
                     return res.status(200).json({ status: 'ok' });
@@ -55,6 +72,7 @@ function TelegramService() {
         },
         '/createtask': {
             description: 'Tạo một task mới với cron schedule và prompt',
+            isConversationCommand: false,
             execute: async (req, res, chatSession) => {
                 try {
                     const chatId = req.body.message.chat.id;
@@ -163,71 +181,81 @@ function TelegramService() {
         },
         '/order': {
             description: 'Tạo task tự động từ yêu cầu của bạn',
-            execute: async (req, res) => {
+            isConversationCommand: false,
+            execute: async (req, res, chatSession) => {
                 try {
                     const chatId = req.body.message.chat.id;
                     const messageText = req.body.message.text.trim();
 
-                    // Get user request after /order command
-                    const userRequest = messageText.replace('/order', '').trim();
+                    // Helper function to process order request
+                    const processOrderRequest = async (userRequest) => {
+                        logger.info(`Processing order request: ${userRequest}`);
+                        await SELF.sendMessage("Đang xử lý yêu cầu của bạn...", chatId);
 
-                    if (!userRequest) {
-                        await SELF.sendMessage("Vui lòng mô tả yêu cầu của bạn.\nVí dụ: `/order Nhắc tôi tập thể dục mỗi sáng lúc 7 giờ`", chatId);
+                        const rawResponse = await LmService.getResponse(`
+                            ${require('../prompts').task_parser}
+
+                            User Input: "${userRequest}"
+                        `, false);
+
+                        let parsedTask;
+                        try {
+                            const jsonStr = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                            parsedTask = JSON.parse(jsonStr);
+                        } catch (_e) {
+                            logger.error(`Failed to parse AI response: ${rawResponse}`);
+                            await SELF.sendMessage("Xin lỗi, tôi không hiểu được yêu cầu của bạn.", chatId);
+                            return false;
+                        }
+
+                        if (!parsedTask.cron || !parsedTask.prompt) {
+                            await SELF.sendMessage("Không thể tạo task từ yêu cầu của bạn.", chatId);
+                            return false;
+                        }
+
+                        const cronRegex = /^((((\d+,)+\d+|(\d+(\/|-|#)\d+)|\d+L?|\*(\/\d+)?|L(-\d+)?|\?|[A-Z]{3}(-[A-Z]{3})?) ?){5,7})|(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every (\d+(ns|us|µs|ms|s|m|h))+)$/;
+                        if (!cronRegex.test(parsedTask.cron)) {
+                            await SELF.sendMessage(`Lỗi: Cron expression không hợp lệ: ${parsedTask.cron}`, chatId);
+                            return false;
+                        }
+
+                        await DatabaseService.executeQuery(`
+                            insert into tasks (cron, prompt, description, chat_id)
+                            values (?, ?, ?, ?)
+                        `, [parsedTask.cron, parsedTask.prompt, parsedTask.prompt, chatId]);
+
+                        ScheduleService.syncNewJobs();
+
+                        await SELF.sendMessage(
+                            `Task đã được tạo thành công!\n\n` +
+                            `Schedule: \`${parsedTask.cron}\`\n` +
+                            `Hành động: ${parsedTask.prompt}`,
+                            chatId
+                        );
+                        return true;
+                    };
+
+                    // Interactive flow: if session exists, user is providing the request
+                    if (chatSession?.command === '/order') {
+                        await processOrderRequest(messageText);
+                        await RedisService.deleteData(`session_${chatId}`);
                         return res.status(200).json({ status: 'ok' });
                     }
 
-                    logger.info(`Processing order request: ${userRequest}`);
-                    await SELF.sendMessage("Đang xử lý yêu cầu của bạn...", chatId);
-
-                    // Use LM service to parse the user request
-                    const rawResponse = await LmService.getResponse(`
-                        ${require('../prompts').task_parser}
-
-                        User Input: "${userRequest}"
-                    `, false);
-
-                    let parsedTask;
-                    try {
-                        // Clean up json if wrapped in markdown code blocks
-                        const jsonStr = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-                        parsedTask = JSON.parse(jsonStr);
-                    } catch (_e) {
-                        logger.error(`Failed to parse AI response: ${rawResponse}`);
-                        await SELF.sendMessage("Xin lỗi, tôi không hiểu được yêu cầu của bạn. Vui lòng thử lại với mô tả rõ ràng hơn.", chatId);
+                    // Check if user provided request directly with command
+                    const directRequest = messageText.replace('/order', '').trim();
+                    if (directRequest) {
+                        await processOrderRequest(directRequest);
                         return res.status(200).json({ status: 'ok' });
                     }
 
-                    // Validate parsed task
-                    if (!parsedTask.cron || !parsedTask.prompt) {
-                        await SELF.sendMessage("Không thể tạo task từ yêu cầu của bạn. Vui lòng mô tả rõ hơn về thời gian và hành động cần thực hiện.", chatId);
-                        return res.status(200).json({ status: 'ok' });
-                    }
-
-                    // Validate cron expression
-                    const cronRegex = /^((((\d+,)+\d+|(\d+(\/|-|#)\d+)|\d+L?|\*(\/\d+)?|L(-\d+)?|\?|[A-Z]{3}(-[A-Z]{3})?) ?){5,7})|(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every (\d+(ns|us|µs|ms|s|m|h))+)$/;
-                    if (!cronRegex.test(parsedTask.cron)) {
-                        await SELF.sendMessage(`Lỗi: Cron expression không hợp lệ: ${parsedTask.cron}`, chatId);
-                        return res.status(200).json({ status: 'ok' });
-                    }
-
-                    // Create task in database
-                    await DatabaseService.executeQuery(`
-                        insert into tasks (cron, prompt, description, chat_id)
-                        values (?, ?, ?, ?)
-                    `, [parsedTask.cron, parsedTask.prompt, parsedTask.prompt, chatId]);
-
-                    // Sync with schedule service immediately
-                    ScheduleService.syncNewJobs();
-
-                    // Send success message
-                    const response = await SELF.sendMessage(
-                        `✅ Task đã được tạo thành công!\n\n` +
-                        `📅 Schedule: \`${parsedTask.cron}\`\n` +
-                        `📝 Hành động: ${parsedTask.prompt}`,
-                        chatId
-                    );
-
-                    return res.status(200).json({ status: 'ok', response: response });
+                    // First call: ask user for their request
+                    await RedisService.storeData(`session_${chatId}`, {
+                        command: '/order',
+                        data: {}
+                    });
+                    await SELF.sendMessage('Bạn muốn tạo task gì? Mô tả yêu cầu của bạn (ví dụ: "Nhắc tôi tập thể dục mỗi sáng lúc 7 giờ").', chatId);
+                    return res.status(200).json({ status: 'ok' });
                 } catch (error) {
                     logger.error(`Error in /order: ${error.stack}`);
                     const chatId = req.body.message.chat.id;
@@ -238,15 +266,41 @@ function TelegramService() {
         },
         '/ask': {
             description: 'Đặt câu hỏi cho AI và nhận được phản hồi',
-            execute: async (req, res) => {
+            isConversationCommand: false,
+            execute: async (req, res, chatSession) => {
                 try {
                     const chatId = req.body.message.chat.id;
-                    const msgParts = req.body.message.text.split(' ');
-                    const prompt = msgParts.slice(1).join(' ').trim();
-                    if (!prompt) return res.status(200).json({ status: 'ok', response: 'Please provide a prompt' });
-                    const replyMsg = await LmService.getResponse(prompt);
-                    const response = await SELF.sendMessage(replyMsg, chatId);
-                    return res.status(200).json({ status: 'ok', response: response });
+                    const messageText = req.body.message.text.trim();
+
+                    // Interactive flow: if session exists, user is providing the question
+                    if (chatSession?.command === '/ask') {
+                        const prompt = messageText;
+                        if (!prompt) {
+                            await SELF.sendMessage('Vui lòng cung cấp câu hỏi của bạn.', chatId);
+                            return res.status(200).json({ status: 'ok' });
+                        }
+                        const replyMsg = await LmService.getResponse(prompt);
+                        await SELF.sendMessage(replyMsg, chatId);
+                        await RedisService.deleteData(`session_${chatId}`);
+                        return res.status(200).json({ status: 'ok' });
+                    }
+
+                    // Check if user provided question directly with command
+                    const msgParts = messageText.split(' ');
+                    const directPrompt = msgParts.slice(1).join(' ').trim();
+                    if (directPrompt) {
+                        const replyMsg = await LmService.getResponse(directPrompt);
+                        await SELF.sendMessage(replyMsg, chatId);
+                        return res.status(200).json({ status: 'ok' });
+                    }
+
+                    // First call: ask user for their question
+                    await RedisService.storeData(`session_${chatId}`, {
+                        command: '/ask',
+                        data: {}
+                    });
+                    await SELF.sendMessage('Bạn muốn hỏi gì?', chatId);
+                    return res.status(200).json({ status: 'ok' });
                 } catch (error) {
                     logger.error(`Error in /ask: ${error.stack}`);
                     return res.status(200).json({ status: 'ok' });
@@ -255,6 +309,7 @@ function TelegramService() {
         },
         '/cancel': {
             description: 'Hủy thao tác hiện tại',
+            isConversationCommand: true, // Allowed during conversation
             execute: async (req, res) => {
                 const chatId = req.body.message.chat.id;
                 const chatSession = await RedisService.getData(`session_${chatId}`);
@@ -272,22 +327,55 @@ function TelegramService() {
                 }
                 await Promise.all([
                     RedisService.deleteData(`session_${chatId}`),
-                    SELF.sendMessage(`Operation cancelled`, chatId)
+                    SELF.sendMessage(`Đã hủy thao tác.`, chatId)
                 ]);
                 return res.status(200).json({ status: 'ok' });
             }
         },
         '/deletetask': {
             description: 'Xóa một task theo ID',
-            execute: async (req, res) => {
+            isConversationCommand: false,
+            execute: async (req, res, chatSession) => {
                 try {
                     const chatId = req.body.message.chat.id;
-                    const taskId = req.body.message.text.split(' ')[1];
-                    await DatabaseService.executeQuery(`
-                        delete from tasks where id = ? and chat_id = ?
-                    `, [taskId, chatId]);
-                    await SELF.sendMessage(`Task deleted successfully`, chatId);
-                    return res.status(200).json({ status: 'ok', response: 'Task deleted successfully' });
+                    const messageText = req.body.message.text.trim();
+
+                    // Interactive flow: if session exists, user is providing task ID
+                    if (chatSession?.command === '/deletetask') {
+                        const taskId = messageText.trim();
+                        if (!taskId || Number.isNaN(Number(taskId))) {
+                            await SELF.sendMessage('Vui lòng cung cấp ID task hợp lệ.', chatId);
+                            return res.status(200).json({ status: 'ok' });
+                        }
+                        await DatabaseService.executeQuery(`
+                            delete from tasks where id = ? and chat_id = ?
+                        `, [taskId, chatId]);
+                        await SELF.sendMessage(`Đã xóa task thành công.`, chatId);
+                        await RedisService.deleteData(`session_${chatId}`);
+                        return res.status(200).json({ status: 'ok' });
+                    }
+
+                    // Check if user provided task ID directly with command
+                    const directTaskId = messageText.split(' ')[1];
+                    if (directTaskId) {
+                        if (Number.isNaN(Number(directTaskId))) {
+                            await SELF.sendMessage('ID task không hợp lệ.', chatId);
+                            return res.status(200).json({ status: 'ok' });
+                        }
+                        await DatabaseService.executeQuery(`
+                            delete from tasks where id = ? and chat_id = ?
+                        `, [directTaskId, chatId]);
+                        await SELF.sendMessage(`Đã xóa task thành công.`, chatId);
+                        return res.status(200).json({ status: 'ok' });
+                    }
+
+                    // First call: ask user for task ID
+                    await RedisService.storeData(`session_${chatId}`, {
+                        command: '/deletetask',
+                        data: {}
+                    });
+                    await SELF.sendMessage('Bạn muốn xóa task nào? Vui lòng cung cấp ID của task.', chatId);
+                    return res.status(200).json({ status: 'ok' });
                 } catch (error) {
                     logger.error(`Error in /deletetask: ${error.stack}`);
                     return res.status(200).json({ status: 'ok' });
@@ -296,6 +384,7 @@ function TelegramService() {
         },
         '/startconversation': {
             description: "Tạo cuộc hội thoại",
+            isConversationCommand: true,
             execute: async (req, res) => {
                 try {
                     const chatId = req.body.message.chat.id;
@@ -372,17 +461,29 @@ function TelegramService() {
         },
         '/stopconversation': {
             description: "Kết thúc cuộc hội thoại",
+            isConversationCommand: true, // Allowed during conversation
             execute: async (req, res) => {
                 try {
                     const chatId = req.body.message.chat.id;
                     const chatSession = await RedisService.getData(`session_${chatId}`);
-                    if (chatSession) {
+                    if (chatSession?.command === '/startconversation') {
+                        // Save conversation to database before ending
+                        const conversation = await RedisService.getData(`conversation_${chatId}`);
+                        if (conversation && conversation.messages?.length > 0) {
+                            await DatabaseService.executeQuery(`
+                                insert into conversations (chat_id, messages, summary, created_at)
+                                values (?, ?, ?, ?)
+                            `, [chatId, JSON.stringify(conversation.messages), conversation.summary,
+                                new Date(conversation.createdAt * 1000)]);
+                        }
                         await Promise.all([
                             RedisService.deleteData(`session_${chatId}`),
-                            SELF.sendMessage(`Conversation ended`, chatId)
+                            RedisService.deleteData(`conversation_${chatId}`),
+                            SELF.sendMessage(`Đã kết thúc cuộc hội thoại.`, chatId)
                         ]);
                         return res.status(200).json({ status: 'ok' });
                     }
+                    await SELF.sendMessage(`Bạn không trong cuộc hội thoại nào.`, chatId);
                     return res.status(200).json({ status: 'ok' });
                 } catch (error) {
                     logger.error(`Error in /stopconversation: ${error.stack}`);
@@ -414,21 +515,43 @@ function TelegramService() {
                 if (!message || !messageText) {
                     return res.status(200).json({ status: 'ok' });
                 }
+
+                const chatId = message.chat.id;
+                const chatSession = await RedisService.getData(`session_${chatId}`);
+                logger.info(`Chat session: ${JSON.stringify(chatSession, null, 2)}`);
+
+                // Check if user is in conversation mode
+                const isInConversation = chatSession?.command === '/startconversation';
+
                 if (messageText.startsWith('/')) {
                     const command = messageText.split(' ')[0];
                     const commandHandler = COMMAND_HANDLERS[command];
-                    if (commandHandler) return commandHandler.execute(req, res);
-                    return res.status(200).json({ status: 'Invalid command' });
+
+                    if (!commandHandler) {
+                        return res.status(200).json({ status: 'Invalid command' });
+                    }
+
+                    // If user is in conversation, only allow conversation-related commands
+                    if (isInConversation && !commandHandler.isConversationCommand) {
+                        // This message should be excluded from AI context
+                        await SELF.sendMessage(
+                            `Bạn đang trong cuộc hội thoại. Vui lòng dùng /stopconversation để kết thúc hoặc /cancel để hủy trước khi sử dụng lệnh khác.`,
+                            chatId,
+                            { excludeFromContext: true }
+                        );
+                        return res.status(200).json({ status: 'ok' });
+                    }
+
+                    return commandHandler.execute(req, res, chatSession);
                 }
-                const chatSession = await RedisService.getData(`session_${message.chat.id}`);
-                logger.info(`Chat session: ${JSON.stringify(chatSession, null, 2)}`);
+
+                // Non-command message handling
                 if (chatSession?.command) {
                     const commandHandler = COMMAND_HANDLERS[chatSession.command];
                     if (commandHandler) return commandHandler.execute(req, res, chatSession);
-                    await RedisService.deleteData(`session_${message.chat.id}`);
+                    await RedisService.deleteData(`session_${chatId}`);
                     return res.status(200).json({ status: 'Invalid session' });
                 }
-
 
                 return res.status(200).json({ status: 'ok' });
             } catch (error) {
