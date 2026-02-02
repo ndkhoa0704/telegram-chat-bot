@@ -58,7 +58,24 @@ function RedisService() {
             if (!SELF.client) {
                 await module.exports.connect();
             }
-            await SELF.client.set(SELF.buildKey(key), JSON.stringify(data), options);
+            const redisKey = SELF.buildKey(key);
+            const value = JSON.stringify(data);
+
+            // Bun's RedisClient.set() doesn't accept options object
+            // Use send() method for options like EX, PX, NX, XX
+            if (options.EX || options.PX || options.NX || options.XX || options.EXAT || options.PXAT) {
+                const args = [redisKey, value];
+                if (options.EX) args.push('EX', String(options.EX));
+                if (options.PX) args.push('PX', String(options.PX));
+                if (options.EXAT) args.push('EXAT', String(options.EXAT));
+                if (options.PXAT) args.push('PXAT', String(options.PXAT));
+                if (options.NX) args.push('NX');
+                if (options.XX) args.push('XX');
+                await SELF.client.send('SET', args);
+            } else {
+                // Simple set without options
+                await SELF.client.set(redisKey, value);
+            }
         },
         getKeysByPrefix: async (prefix) => {
             if (!SELF.client) {
