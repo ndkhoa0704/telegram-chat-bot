@@ -5,6 +5,8 @@ import LmService from './services/lm.service.js';
 import ScheduleService from './services/schedule.service.js';
 import logger from './utils/log.util.js';
 import RedisService from './services/redis.service.js';
+import dotenv from 'dotenv';
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
 
