@@ -1,4 +1,4 @@
-const { RedisClient } = require("bun");
+const { createClient } = require('redis');
 const logger = require('../utils/log.util');
 
 
@@ -27,29 +27,23 @@ function RedisService() {
          * @returns {boolean}
          */
         isConnected: () => {
-            return SELF.client !== null;
+            return SELF.client !== null && SELF.client.isOpen;
         },
         connect: async () => {
             const redisUrl = SELF.buildRedisUrl();
             logger.debug(`Connecting to Redis at ${redisUrl}`);
             if (!SELF.client) {
-                SELF.client = new RedisClient(redisUrl);
-                if (typeof SELF.client.on === 'function') {
-                    SELF.client.on("error", (err) => {
-                        logger.error(`Redis client error: ${err.stack}`);
-                    });
-                } else if (typeof SELF.client.addEventListener === 'function') {
-                    SELF.client.addEventListener("error", (event) => {
-                        logger.error(`Redis client error: ${event?.message || event}`);
-                    });
-                }
+                SELF.client = createClient({ url: redisUrl });
+                SELF.client.on('error', (err) => {
+                    logger.error(`Redis client error: ${err.stack || err}`);
+                });
                 await SELF.client.connect();
             }
             return SELF.client;
         },
         /**
          * Get the underlying Redis client
-         * @returns {import("bun").RedisClient|null}
+         * @returns {import('redis').RedisClientType|null}
          */
         getClient: () => {
             return SELF.client;
@@ -61,19 +55,18 @@ function RedisService() {
             const redisKey = SELF.buildKey(key);
             const value = JSON.stringify(data);
 
-            // Bun's RedisClient.set() doesn't accept options object
-            // Use send() method for options like EX, PX, NX, XX
-            if (options.EX || options.PX || options.NX || options.XX || options.EXAT || options.PXAT) {
-                const args = [redisKey, value];
-                if (options.EX) args.push('EX', String(options.EX));
-                if (options.PX) args.push('PX', String(options.PX));
-                if (options.EXAT) args.push('EXAT', String(options.EXAT));
-                if (options.PXAT) args.push('PXAT', String(options.PXAT));
-                if (options.NX) args.push('NX');
-                if (options.XX) args.push('XX');
-                await SELF.client.send('SET', args);
+            // node-redis v5 accepts options object directly in set()
+            const setOptions = {};
+            if (options.EX) setOptions.EX = options.EX;
+            if (options.PX) setOptions.PX = options.PX;
+            if (options.EXAT) setOptions.EXAT = options.EXAT;
+            if (options.PXAT) setOptions.PXAT = options.PXAT;
+            if (options.NX) setOptions.NX = true;
+            if (options.XX) setOptions.XX = true;
+
+            if (Object.keys(setOptions).length > 0) {
+                await SELF.client.set(redisKey, value, setOptions);
             } else {
-                // Simple set without options
                 await SELF.client.set(redisKey, value);
             }
         },
@@ -81,14 +74,17 @@ function RedisService() {
             if (!SELF.client) {
                 await module.exports.connect();
             }
-            let cursor = '0';
+            let cursor = 0;
             let keys = [];
             do {
-                // Bun's Redis client returns [nextCursor, keys] array format
-                const result = await SELF.client.send('SCAN', [cursor, 'MATCH', `${SELF.PREFIX}${prefix}*`, 'COUNT', '1000']);
-                cursor = String(result[0]);
-                keys = keys.concat(result[1] || []);
-            } while (cursor !== '0');
+                // node-redis v5 scan method returns { cursor, keys }
+                const result = await SELF.client.scan(cursor, {
+                    MATCH: `${SELF.PREFIX}${prefix}*`,
+                    COUNT: 1000
+                });
+                cursor = result.cursor;
+                keys = keys.concat(result.keys || []);
+            } while (cursor !== 0);
             return keys.map((key) => key.startsWith(SELF.PREFIX)
                 ? key.slice(SELF.PREFIX.length)
                 : key);
@@ -112,7 +108,7 @@ function RedisService() {
         },
         disconnect: async () => {
             if (SELF.client) {
-                await SELF.client.close();
+                await SELF.client.quit();
                 SELF.client = null;
             }
         },

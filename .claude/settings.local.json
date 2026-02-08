@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "mcp__MCP_DOCKER__resolve-library-id",
-      "Bash(bun run dev)"
+      "Bash(bun run dev)",
+      "Bash(npm install:*)",
+      "Bash(del \"d:\\\\workspace\\\\telegram-chat-bot\\\\bun.lock\")",
+      "Bash(node -e:*)"
     ]
   }
 }

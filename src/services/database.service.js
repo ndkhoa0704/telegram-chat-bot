@@ -1,11 +1,11 @@
-const { Database } = require('bun:sqlite');
+const Database = require('better-sqlite3');
 const fs = require('node:fs');
 const path = require('node:path');
 
 
 function DatabaseService() {
     const self = {
-        /** @type {import('bun:sqlite').Database} */
+        /** @type {import('better-sqlite3').Database} */
         db: null,
     }
 
@@ -32,13 +32,13 @@ function DatabaseService() {
                 fs.mkdirSync(dbDir, { recursive: true });
             }
 
-            // Initialize Bun SQLite Database
-            self.db = new Database(sqlitePath, { create: true });
+            // Initialize better-sqlite3 Database
+            self.db = new Database(sqlitePath);
 
             // Recommended optimizations for SQLite
-            self.db.run("PRAGMA journal_mode = WAL;");
-            self.db.run("PRAGMA synchronous = NORMAL;");
-            self.db.run("PRAGMA foreign_keys = ON;");
+            self.db.pragma('journal_mode = WAL');
+            self.db.pragma('synchronous = NORMAL');
+            self.db.pragma('foreign_keys = ON');
 
             return self.db;
         },
@@ -55,7 +55,7 @@ function DatabaseService() {
         },
 
         /**
-         * Executes a SQL query using bun:sqlite
+         * Executes a SQL query using better-sqlite3
          * @param {string} queryString - SQL query to execute
          * @param {Array|Object} params - Query parameters
          * @returns {Promise<any>}
@@ -70,7 +70,7 @@ function DatabaseService() {
                 let sqlText = queryString;
                 let sqlParams = params;
 
-                // Allow bun sql`` tagged template input
+                // Allow tagged template input (for compatibility)
                 if (queryString && typeof queryString === 'object' && queryString.sql) {
                     sqlText = queryString.sql;
                     sqlParams = queryString.values || [];
@@ -84,13 +84,13 @@ function DatabaseService() {
                 const isReadOperation = /^(select|pragma|with|explain)\b/.test(operation);
 
                 if (isReadOperation) {
-                    // Use query() for SELECT operations
-                    const stmt = self.db.query(sqlText);
+                    // Use prepare().all() for SELECT operations
+                    const stmt = self.db.prepare(sqlText);
                     return stmt.all(...safeParams);
                 } else {
-                    // Use run() for INSERT, UPDATE, DELETE, etc.
-                    const result = self.db.run(sqlText, ...safeParams);
-                    return result;
+                    // Use prepare().run() for INSERT, UPDATE, DELETE, etc.
+                    const stmt = self.db.prepare(sqlText);
+                    return stmt.run(...safeParams);
                 }
             } catch (error) {
                 console.error('Database Query Error:', error);
@@ -101,8 +101,8 @@ function DatabaseService() {
         },
 
         /**
-         * Executes a SQL query using bun sql`` tagged template
-         * @param {ReturnType<typeof sql>} query - bun sql tagged template
+         * Executes a SQL query using tagged template (compatibility method)
+         * @param {Object} query - tagged template query object
          * @returns {Promise<any>}
          */
         executeSql: async (query) => {
@@ -125,7 +125,7 @@ function DatabaseService() {
 
         /**
          * Get the underlying database instance
-         * @returns {import('bun:sqlite').Database}
+         * @returns {import('better-sqlite3').Database}
          */
         getDb: () => {
             return self.db;

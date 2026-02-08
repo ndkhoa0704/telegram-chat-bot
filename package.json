@@ -5,8 +5,9 @@
   "main": "src/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "bun --watch src/index.js",
-    "start": "bun src/index.js"
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "migrate": "node src/scripts/migrate_tables.js"
   },
   "repository": {
     "type": "git",
@@ -21,6 +22,7 @@
   "homepage": "https://github.com/ndkhoa0704/telegram-chat-bot#readme",
   "dependencies": {
     "@openrouter/sdk": "^0.5.1",
+    "better-sqlite3": "^11.0.0",
     "cron": "^4.3.3",
     "express": "^5.1.0",
     "mammoth": "^1.11.0",
@@ -29,6 +31,7 @@
     "winston": "^3.18.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.2.6"
+    "@biomejs/biome": "2.2.6",
+    "nodemon": "^3.1.0"
   }
 }
