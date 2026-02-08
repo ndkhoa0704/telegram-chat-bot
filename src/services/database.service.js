@@ -1,6 +1,6 @@
-const Database = require('better-sqlite3');
-const fs = require('node:fs');
-const path = require('node:path');
+import Database from 'better-sqlite3';
+import fs from 'node:fs';
+import path from 'node:path';
 
 
 function DatabaseService() {
@@ -9,7 +9,7 @@ function DatabaseService() {
         db: null,
     }
 
-    return {
+    const service = {
         /**
          * Check if database is connected
          * @returns {boolean}
@@ -63,7 +63,7 @@ function DatabaseService() {
         executeQuery: async (queryString, params = []) => {
             // Ensure connection
             if (!self.db) {
-                await module.exports.connect();
+                await service.connect();
             }
 
             try {
@@ -106,7 +106,7 @@ function DatabaseService() {
          * @returns {Promise<any>}
          */
         executeSql: async (query) => {
-            return module.exports.executeQuery(query);
+            return service.executeQuery(query);
         },
 
         /**
@@ -116,7 +116,7 @@ function DatabaseService() {
          */
         transaction: async (callback) => {
             if (!self.db) {
-                await module.exports.connect();
+                await service.connect();
             }
 
             const txn = self.db.transaction(callback);
@@ -131,6 +131,8 @@ function DatabaseService() {
             return self.db;
         }
     };
+
+    return service;
 }
 
-module.exports = DatabaseService();
+export default DatabaseService();

@@ -4,4 +4,4 @@ function CommandController() {
     }
 }
 
-module.exports = CommandController();
+export default CommandController();

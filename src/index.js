@@ -1,10 +1,10 @@
-const express = require('express')
-const TelegramService = require('./services/telegram.service');
-const DatabaseService = require('./services/database.service');
-const LmService = require('./services/lm.service');
-const ScheduleService = require('./services/schedule.service');
-const logger = require('./utils/log.util');
-const RedisService = require('./services/redis.service');
+import express from 'express';
+import TelegramService from './services/telegram.service.js';
+import DatabaseService from './services/database.service.js';
+import LmService from './services/lm.service.js';
+import ScheduleService from './services/schedule.service.js';
+import logger from './utils/log.util.js';
+import RedisService from './services/redis.service.js';
 
 const app = express();
 

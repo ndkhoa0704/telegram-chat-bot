@@ -1,8 +1,9 @@
-const logger = require('../utils/log.util');
-const RedisService = require('./redis.service');
-const DatabaseService = require('./database.service');
-const LmService = require('./lm.service');
-const ScheduleService = require('./schedule.service');
+import logger from '../utils/log.util.js';
+import RedisService from './redis.service.js';
+import DatabaseService from './database.service.js';
+import LmService from './lm.service.js';
+import ScheduleService from './schedule.service.js';
+import prompts from '../prompts/index.js';
 
 function TelegramService() {
     const SELF = {
@@ -86,7 +87,7 @@ function TelegramService() {
                         await SELF.sendMessage("Processing your request...", chatId);
 
                         const rawResponse = await LmService.getResponse(`
-                            ${require('../prompts').task_parser}
+                            ${prompts.task_parser}
 
                             User Input: "${userRequest}"
                         `, false);
@@ -193,7 +194,7 @@ function TelegramService() {
                         await SELF.sendMessage("Đang xử lý yêu cầu của bạn...", chatId);
 
                         const rawResponse = await LmService.getResponse(`
-                            ${require('../prompts').task_parser}
+                            ${prompts.task_parser}
 
                             User Input: "${userRequest}"
                         `, false);
@@ -581,4 +582,4 @@ function TelegramService() {
     }
 }
 
-module.exports = TelegramService();
+export default TelegramService();

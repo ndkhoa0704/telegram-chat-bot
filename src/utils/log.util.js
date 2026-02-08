@@ -1,6 +1,10 @@
-const winston = require('winston');
-const path = require('node:path');
-const fs = require('node:fs');
+import winston from 'winston';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const { format, transports } = winston;
 
@@ -120,4 +124,4 @@ logger.stream = {
     write: (message) => logger.info(message.trim())
 };
 
-module.exports = logger;
+export default logger;

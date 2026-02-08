@@ -132,4 +132,4 @@ function TimeUtil() {
     }
 }
 
-module.exports = TimeUtil();
+export default TimeUtil();

@@ -1,9 +1,9 @@
-const CronJob = require('cron').CronJob;
-const DatabaseService = require('./database.service');
-const LmService = require('./lm.service');
-const TelegramService = require('./telegram.service');
-const logger = require('../utils/log.util');
-const RedisService = require('./redis.service');
+import { CronJob } from 'cron';
+import DatabaseService from './database.service.js';
+import LmService from './lm.service.js';
+import TelegramService from './telegram.service.js';
+import logger from '../utils/log.util.js';
+import RedisService from './redis.service.js';
 
 
 function ScheduleService() {
@@ -150,4 +150,4 @@ function ScheduleService() {
     }
 }
 
-module.exports = ScheduleService();
+export default ScheduleService();

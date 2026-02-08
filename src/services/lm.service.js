@@ -1,7 +1,7 @@
-const { OpenRouter } = require('@openrouter/sdk');
-const prompts = require('../prompts');
-const tools = require('../tools');
-const logger = require('../utils/log.util');
+import { OpenRouter } from '@openrouter/sdk';
+import prompts from '../prompts/index.js';
+import tools from '../tools/index.js';
+import logger from '../utils/log.util.js';
 
 
 function LmService() {
@@ -86,4 +86,4 @@ function LmService() {
 }
 
 
-module.exports = LmService();
+export default LmService();

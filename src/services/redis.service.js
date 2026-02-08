@@ -1,5 +1,5 @@
-const { createClient } = require('redis');
-const logger = require('../utils/log.util');
+import { createClient } from 'redis';
+import logger from '../utils/log.util.js';
 
 
 function RedisService() {
@@ -21,7 +21,7 @@ function RedisService() {
         },
     }
 
-    return {
+    const service = {
         /**
          * Check if Redis is connected
          * @returns {boolean}
@@ -50,7 +50,7 @@ function RedisService() {
         },
         storeData: async (key, data, options = {}) => {
             if (!SELF.client) {
-                await module.exports.connect();
+                await service.connect();
             }
             const redisKey = SELF.buildKey(key);
             const value = JSON.stringify(data);
@@ -72,7 +72,7 @@ function RedisService() {
         },
         getKeysByPrefix: async (prefix) => {
             if (!SELF.client) {
-                await module.exports.connect();
+                await service.connect();
             }
             let cursor = 0;
             let keys = [];
@@ -91,7 +91,7 @@ function RedisService() {
         },
         getData: async (key) => {
             if (!SELF.client) {
-                await module.exports.connect();
+                await service.connect();
             }
             const data = await SELF.client.get(SELF.buildKey(key));
             try {
@@ -102,7 +102,7 @@ function RedisService() {
         },
         deleteData: async (key) => {
             if (!SELF.client) {
-                await module.exports.connect();
+                await service.connect();
             }
             await SELF.client.del(SELF.buildKey(key));
         },
@@ -112,7 +112,9 @@ function RedisService() {
                 SELF.client = null;
             }
         },
-    }
+    };
+
+    return service;
 }
 
-module.exports = RedisService();
+export default RedisService();

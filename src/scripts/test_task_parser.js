@@ -1,5 +1,5 @@
-const LmService = require('../services/lmService');
-const prompts = require('../prompts');
+import LmService from '../services/lm.service.js';
+import prompts from '../prompts/index.js';
 
 async function test() {
     console.log("Checking environment...");

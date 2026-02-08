@@ -1,6 +1,6 @@
-const logger = require('../utils/log.util');
+import logger from '../utils/log.util.js';
 
-module.exports = {
+export default {
     type: "function",
     function: {
         name: "webSearch",
@@ -41,4 +41,4 @@ module.exports = {
             content: result.description.slice(0, 1000), // take just the first 1000 characters
         }));
     },
-}
+};

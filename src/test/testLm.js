@@ -1,5 +1,5 @@
-require('dotenv').config();
-const LmService = require('../services/lmService');
+import 'dotenv/config';
+import LmService from '../services/lm.service.js';
 
 async function test() {
     LmService.init();

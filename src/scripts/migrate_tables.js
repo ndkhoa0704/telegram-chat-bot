@@ -1,4 +1,4 @@
-const DatabaseService = require('../services/databaseService');
+import DatabaseService from '../services/database.service.js';
 
 async function migrateTables() {
     await DatabaseService.executeQuery(`

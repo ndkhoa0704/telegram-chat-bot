@@ -1,6 +1,6 @@
-const logger = require('../utils/log.util');
+import logger from '../utils/log.util.js';
 
-module.exports = {
+export default {
     type: "function",
     function: {
         name: "currentTimeStamp",
@@ -19,4 +19,4 @@ module.exports = {
             currentTimeStamp: result,
         }
     },
-}
+};

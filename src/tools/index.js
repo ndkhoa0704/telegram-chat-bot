@@ -1,9 +1,9 @@
-const searchWeb = require('./searchWeb');
-const currentTimeStamp = require('./currentTimeStamp');
-const getPrevTimeStamp = require('./getPrevTimeStamp');
+import searchWeb from './searchWeb.js';
+import currentTimeStamp from './currentTimeStamp.js';
+import getPrevTimeStamp from './getPrevTimeStamp.js';
 
 
-module.exports = [
+export default [
     searchWeb,
     currentTimeStamp,
     getPrevTimeStamp,
