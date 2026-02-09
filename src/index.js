@@ -23,15 +23,46 @@ app.post('/api/webhook', TelegramService.sendReply);
 // Store server instance for graceful shutdown
 let server;
 
-server = app.listen(process.env.WEB_PORT, async () => {
-    LmService.init();
-    RedisService.connect();
-    TelegramService.setupWebhook();
-    TelegramService.setupCommands();
-    DatabaseService.connect();
-    await ScheduleService.startJobs();
-    logger.info(`Server is running on port ${process.env.WEB_PORT}`);
-})
+// Initialize services first
+async function initializeServices() {
+    try {
+        LmService.init();
+        await RedisService.connect();
+        await DatabaseService.connect();
+        await ScheduleService.startJobs();
+        logger.info('All services initialized successfully');
+    } catch (error) {
+        logger.error(`Error initializing services: ${error.stack}`);
+        throw error;
+    }
+}
+
+// Start server and setup webhook
+async function startServer() {
+    try {
+        // Initialize all services first
+        await initializeServices();
+
+        // Start Express server
+        server = app.listen(process.env.WEB_PORT, async () => {
+            logger.info(`Server is running on port ${process.env.WEB_PORT}`);
+
+            // Setup webhook only after server is ready
+            try {
+                await TelegramService.setupWebhook();
+                await TelegramService.setupCommands();
+                logger.info('Telegram webhook and commands configured successfully');
+            } catch (error) {
+                logger.error(`Error setting up Telegram: ${error.stack}`);
+            }
+        });
+    } catch (error) {
+        logger.error(`Error starting server: ${error.stack}`);
+        process.exit(1);
+    }
+}
+
+startServer();
 
 async function gracefulShutdown(signal) {
     logger.info(`Received ${signal}, starting graceful shutdown...`);
