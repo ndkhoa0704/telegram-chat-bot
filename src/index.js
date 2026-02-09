@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import TelegramService from './services/telegram.service.js';
 import DatabaseService from './services/database.service.js';
 import LmService from './services/lm.service.js';
@@ -7,6 +8,8 @@ import ScheduleService from './services/schedule.service.js';
 import logger from './utils/log.util.js';
 import RedisService from './services/redis.service.js';
 import dotenv from 'dotenv';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
