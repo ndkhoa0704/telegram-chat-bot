@@ -497,7 +497,9 @@ function TelegramService() {
 
     return {
         setupWebhook: async () => {
-            const response = await fetch(`${SELF.API_URL}/setWebhook?url=${SELF.WEBHOOK_URL}`);
+            const url = `${SELF.API_URL}/setWebhook?url=${encodeURIComponent(SELF.WEBHOOK_URL)}`;
+            logger.info(`Setting webhook to: ${url}`);
+            const response = await fetch(url);
             const data = await response.json();
             logger.info(`Setup webhook response: ${JSON.stringify(data, null, 2)}`);
         },
