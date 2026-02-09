@@ -44,7 +44,7 @@ async function startServer() {
         await initializeServices();
 
         // Start Express server
-        server = app.listen(process.env.WEB_PORT, async () => {
+        server = app.listen(process.env.WEB_PORT, '0.0.0.0', async () => {
             logger.info(`Server is running on port ${process.env.WEB_PORT}`);
 
             // Setup webhook only after server is ready
